@@ -5,16 +5,35 @@
 ;
 dir = '~/lyra/dat/test/'
 
-filename = 'test1_writecsv.csv'
+rootname = 'test_writecsv'
+extension = '.csv'
 
-n = 100
+n = 5000
+nfile = 19
 
-f = randomn(seed,n)
 
-t = findgen(n)
+for i = 0, nfile-1 do begin
+   if i le 9 then begin
+      number = '00'+trim(i) 
+   endif else begin
+      if i ge 10 and i le 99 then begin
+         number = '0'+trim(i)
+      endif else begin
+         number = trim(i)
+      endelse
+   endelse
 
-header = ['time','emission']
+   f = randomn(seed,n)
+   
+   t = findgen(n)
 
-write_csv,dir + filename,t,f, header = header
+   header = ['time','emission']
+
+   filename = rootname + number + extension
+
+   write_csv,dir + filename,t,f, header = header
+
+endfor
+
 
 end
