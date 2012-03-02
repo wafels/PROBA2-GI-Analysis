@@ -35,6 +35,7 @@ from matplotlib import pyplot as plt
 import urllib,os
 from sgmllib import SGMLParser
 from sunpy.util.util import anytim
+from sunpy.time.util import TimeRange
 
 """
 class used to scrape the webpage
@@ -101,6 +102,10 @@ class lyra:
         self.columns = hdu[1].columns
         hdu.close()
 
+        # define the start and end times 
+        self.tstart = self.time
+        self.tend = self.time + datetime.timedelta(seconds = self.data.field(0)[-1])
+
     def plot(self):
         """Plot the LYRA data"""
         names = self.columns.names
@@ -115,20 +120,6 @@ class lyra:
 
         plt.xlabel( names[0] + ' (' + units[0] + ')' )
         plt.show()
-
-    def cut(self,time1,time2):
-        """Returns a subsection of the data based on times"""
-        pass
-
-    def sumup(self,nbins):
-        """Add up the data using a bin size in # bins"""
-        n = self.data.field(0).size
-        nNew = n/nbins
-        dataNew = self.data
-        for i in range(0,nNew):
-            dataNew.field(0)[i] = data.field(0)[i*nNew]
-        
-        self.data = dataNew
 
 #
 # general purpose downloader using wget
@@ -162,3 +153,48 @@ def wgetDownload(requestedLocation,requestedFile, downloadto, verbose = False, o
         os.system(command)
         return downloadto + requestedFile
 
+
+def sub(lyra,t1,t2):
+    """Returns a subsection of LYRA based on times"""
+    tr = TimeRange(t1,t2)
+    if tr.t1 < lyra.tstart:
+        print('Requested start time less than data start time.')
+    else:
+        index = subFindTimeIndex(lyra.time,lyra.data.field(0), t1)
+        lyra.tstart = getLyraTimeFromIndex(lyra,index)
+    if tr.t2 > lyra.tend:
+        print('Requested end time greater than data start time.')
+    else:
+        index = subFindTimeIndex(lyra.time,lyra.data.field(0), t2)
+        lyra.tend = getLyraTimeFromIndex(lyra,index)
+
+    lyra.data = data
+
+def getLyraTimeFromIndex(lyra,index):
+    return lyra.time + datetime.timedelta(seconds = lyra.data.field(0)[index])
+
+def subFindTimeIndex(lyra,targetTime):
+    earlyIndex = 0
+    lateIndex = sampleTimes.size-1
+    previousIndex = 0
+    while (midIndex != previousIndex):
+        midIndex = 0.5*(earlyIndex + lateIndex)
+        tmidpoint = getLyraTimeFromIndex(lyra,midIndex)
+        if targetTime >= tmidpoint:
+            earlyIndex = midIndex
+            previousIndex = midIndex
+        if targetTime < tmidpoint
+            lateIndex = midIndex
+            previousIndex = midIndex
+    return midIndex
+
+
+
+def sumup(self,nbins):
+    """Add up the data using a bin size in # bins"""
+    n = self.data.field(0).size
+    nNew = n/nbins
+    dataNew = self.data
+    for i in range(0,nNew):
+        dataNew.field(0)[i] = data.field(0)[i*nNew]
+    self.data = dataNew

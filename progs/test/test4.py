@@ -1,11 +1,13 @@
 import pylyra2
-import datetime
 
 # initiate the object
-lobj = pylyra2.lyra()
+lyra = pylyra2.lyra()
 
 # load the data into the hdu
-lobj.download('2011/06/29')
+lyra.download('2011/06/29')
 
-# plot the summary
-lobj.plot()
+# get a subsection
+subsection = pylyra2.sub(lyra,'2011/06/29',400)
+
+# plot the summary of the sub-section
+subsection.plot()
