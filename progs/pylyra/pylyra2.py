@@ -155,31 +155,38 @@ def wgetDownload(requestedLocation,requestedFile, downloadto, verbose = False, o
 
 
 def sub(lyra,t1,t2):
-    """Returns a subsection of LYRA based on times"""
+    """Returns a subsection of LYRA based on times
+         which is also a LYRA object."""
     tr = TimeRange(t1,t2)
     if tr.t1 < lyra.tstart:
         print('Requested start time less than data start time.')
+        indexStart = 0
     else:
-        index = subFindTimeIndex(lyra.time,lyra.data.field(0), t1)
-        lyra.tstart = getLyraTimeFromIndex(lyra,index)
+        indexStart = getLyraIndexGivenTime(lyra.time,lyra.data.field(0), t1)
+        lyra.tstart = getLyraTimeGivenIndex(lyra,indexStart)
     if tr.t2 > lyra.tend:
         print('Requested end time greater than data start time.')
+        indexEnd = lyra.time.size-1
     else:
-        index = subFindTimeIndex(lyra.time,lyra.data.field(0), t2)
-        lyra.tend = getLyraTimeFromIndex(lyra,index)
+        indexEnd = getLyraIndexGivenTime(lyra.time,lyra.data.field(0), t2)
+        lyra.tend = getLyraTimeGivenIndex(lyra,index)
 
-    lyra.data = data
+    lyra.data = data.field(:)[:,indexStart:indexEnd]
+    return lyra
 
-def getLyraTimeFromIndex(lyra,index):
+
+def getLyraTimeGivenIndex(lyra,index):
+    """Given an index, return a time from the LYRA sample times"""
     return lyra.time + datetime.timedelta(seconds = lyra.data.field(0)[index])
 
-def subFindTimeIndex(lyra,targetTime):
+def getLyraIndexGivenTime(lyra,targetTime):
+    """Given a target time, return an index based on the LYRA sample times"""
     earlyIndex = 0
-    lateIndex = sampleTimes.size-1
+    lateIndex = lyra.time.size-1
     previousIndex = 0
     while (midIndex != previousIndex):
         midIndex = 0.5*(earlyIndex + lateIndex)
-        tmidpoint = getLyraTimeFromIndex(lyra,midIndex)
+        tmidpoint = getLyraTimeGivenIndex(lyra,midIndex)
         if targetTime >= tmidpoint:
             earlyIndex = midIndex
             previousIndex = midIndex
