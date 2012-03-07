@@ -1,10 +1,10 @@
-pylyra
+lyra
 ======
 
-(overview of software goes here...)
+Code to acquire lyra data (lyra.py) and perform the lyra GI analysis (lyra_gi.py)
 
 TODO
 ====
-1. Rename/reorganize files in pylyra directory
-2. Rename/reogranize files in dev directory (better to store offline in Dropbox if they are not actual project files)
-3. Add __init__.py to pylyra directory
+1. Improve everything
+2. Move the lyra data acquisition object to sunpy
+3. Add __init__.py to lyra directory

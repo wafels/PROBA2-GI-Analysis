@@ -1,7 +1,7 @@
 """
 Test code that makes use of the lyra and kPyWavelet code.
 """
-import lyra,lyra_gi,sys
+import lyra,lyra_gi
 import matplotlib.pyplot as plt
 import numpy as np
 
