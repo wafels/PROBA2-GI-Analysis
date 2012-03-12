@@ -55,17 +55,22 @@ class URLLister(SGMLParser):
 Main LYRA object
 """
 class lyra:
-    def __init__(self,time):
+    def __init__(self,inputTime, nt = None):
+        """Initialise the LYRA object"""
+        # Basic structure
+        if nt != None:
+            self.data = np.zeros(shape=(4,nt),dtype=np.float32)
+            self.t    = np.zeros(shape=(nt,),dtype=np.float32)
+        
         self.verbose = False
         self.filename = None
-        self.data = None
-        self.columns = None
+        
         self.level = 2
         self.dataType = 'std'
         self.downloadto = os.path.expanduser('~')+os.sep
         self.location = 'http://proba2.oma.be/lyra/data/bsd/'
         self.prefix = 'lyra_'
-        self.time = anytim(time)
+        self.time = anytim(inputTime)
         self.tstart = self.time
         self.tend = self.tstart + datetime.timedelta(days = 1)
         self.nt = None
