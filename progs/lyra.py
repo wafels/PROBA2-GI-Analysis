@@ -13,7 +13,7 @@
     
     To Do
     -----
-    * An object should be developed to encapsulate all of goes functionality
+    * An object should be developed to encapsulate all of LYRA functionality
     * LYRA FITS files store one day's of data at a time.  A simple extension
         of the code would make it easy download multiple days worth of data
         at the one time and create very large arrays of data between
@@ -33,23 +33,9 @@ import pyfits
 import datetime
 from matplotlib import pyplot as plt
 import urllib,os, copy
-from sgmllib import SGMLParser
 from sunpy.util.util import anytim
 from sunpy.time.util import TimeRange
 import numpy as np
-
-"""
-class used to scrape the webpage
-"""
-class URLLister(SGMLParser):
-        def reset(self):
-                SGMLParser.reset(self)
-                self.urls = []
-
-        def start_a(self, attrs):
-                href = [v for k, v in attrs if k=='href']
-                if href:
-                        self.urls.extend(href)
 
 """
 Main LYRA object
@@ -57,23 +43,43 @@ Main LYRA object
 class lyra:
     def __init__(self,inputTime, nt = None):
         """Initialise the LYRA object"""
-        # Basic structure
+
+        # Basic structure that holds data and time
         if nt != None:
             self.data = np.zeros(shape=(4,nt),dtype=np.float32)
             self.t    = np.zeros(shape=(nt,),dtype=np.float32)
-        
-        self.verbose = False
+
+        # Number of time samples
+        self.nt = None
+
+        # Operations verbosity
+        self.verbose = True
+
+        # Original filename
         self.filename = None
-        
+
+        # FITS level of processing
         self.level = 2
+
+        # data type
         self.dataType = 'std'
+
+        # Where the data was originally downloaded to
         self.downloadto = os.path.expanduser('~')+os.sep
+
+        # Where the data comes from
         self.location = 'http://proba2.oma.be/lyra/data/bsd/'
+
+        # Filename prefix
         self.prefix = 'lyra_'
+
+        # Date that the data comes from
         self.time = anytim(inputTime)
+
+        # Time range on that date
         self.tstart = self.time
         self.tend = self.tstart + datetime.timedelta(days = 1)
-        self.nt = None
+
         
     def download(self):
         """ Function to download LYRA data, and/or set the filename where it can be found"""
@@ -93,8 +99,8 @@ class lyra:
         requestedLocation = self.location + dateLocation
         requestedFile  = self.prefix + dateFilename + extension
 
+        # determine if the file is already at the download location
         f = os.path.expanduser(self.downloadto) + os.sep + requestedFile
-
         isAlreadyThere = os.path.isfile(f)
         
         if isAlreadyThere:
@@ -102,7 +108,7 @@ class lyra:
                 print('File '+ f + ' already exists.')
             self.filename = f
         else:
-            self.filename = wgetDownload(requestedLocation,requestedFile, self.downloadto)
+            self.filename = urlDownload(requestedLocation,requestedFile, self.downloadto)
 
     def load(self):
         """Load the FITS file data into the object"""
@@ -132,38 +138,13 @@ class lyra:
         plt.xlabel( names[0] + ' (' + units[0] + ')' )
         plt.show()
 
-#
-# general purpose downloader using wget
-#
-def wgetDownload(requestedLocation,requestedFile, downloadto, verbose = False, overwrite=False):
-
-    usock = urllib.urlopen(requestedLocation)
-    parser = URLLister()
-    parser.feed(usock.read())
-    usock.close()
-    parser.close()
-
+def urlDownload(requestedLocation,requestedFile, downloadto, verbose = False, overwrite=False):
+    """Download the requested file"""
+    url = requestedLocation + requestedFile
     if verbose:
-        print('Requested file = '+requestedFile)
-
-    print(parser.urls)
-
-    if not requestedFile in parser.urls:
-        if verbose:
-            print('Requested file not found.')
-        return None
-    else:
-        if verbose:
-            print('Downloading '+ requestedLocation+requestedFile)
-        remoteBaseURL = '-B ' + requestedLocation + ' '
-        localDir = ' -P'+downloadto + ' '
-        command = 'wget -r -l1 -nd --no-parent ' + requestedLocation+requestedFile + localDir + remoteBaseURL
-        if verbose:
-            print('Executing '+command)
-            print('File located at ' + downloadto + requestedFile)
-        os.system(command)
-        return downloadto + requestedFile
-
+        print('Downloading '+url+' to '+ downloadto + requestedFile)
+    f = urllib.urlretrieve(url, downloadto + requestedFile)
+    return downloadto + requestedFile
 
 def sub(lobj,t1,t2):
     """Returns a subsection of LYRA data based on times
