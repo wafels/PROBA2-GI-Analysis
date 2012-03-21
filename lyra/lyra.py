@@ -1,256 +1,145 @@
 """
-    Provides programs to process and analyze LYRA data. This module is
-    currently in development.
-   
-    Examples
-    --------
-    To make a LYRA plot
-    >>> import sunpy.instr.lyra as lyra
-    >>> lobj = lyra.lyra()
-    >>> lobj.download('2011/07/23')
-    >>> lobj.load()
-    >>> lobj.plot()
-    
-    To Do
-    -----
-    * An object should be developed to encapsulate all of LYRA functionality
-    * LYRA FITS files store one day's of data at a time.  A simple extension
-        of the code would make it easy download multiple days worth of data
-        at the one time and create very large arrays of data between
-        specific times.
-    
-    See Also
-    --------
-    For current data plots see http://proba2.sidc.be
-    
-    References
-    ----------
-    | http://proba2.sidc.be/index.html/science/lyra-analysis-manual/article/lyra-analysis-manual?menu=32
+Provides programs to process and analyze LYRA data. This module is
+currently in development.
 
-    """
+Examples
+--------
+In [1]: lyra = Lyra('lyra_20120320-000000_lev1_std.fits')
+In [2]: lyra.discrete_boxcar_average().show()
+In [3]: lyra.data['CHANNEL1']
+Out[3]: 
+2012-03-20 00:00:00.090000    19.264077
+2012-03-20 00:00:00.140000    19.244072
+...
+2012-03-20 23:59:59.939000    21.564563
+2012-03-20 23:59:59.989000    21.524555
+Name: CHANNEL1, Length: 1725538
+In [4]: lyra.data['CHANNEL1'].values
+Out[4]: 
+array([ 19.264077,  19.244072,  19.204064, ...,  21.564563,  21.564563,
+        21.524555])
 
-import pyfits
+To Do
+-----
+* An object should be developed to encapsulate all of LYRA functionality
+* LYRA FITS files store one day's of data at a time.  A simple extension
+    of the code would make it easy download multiple days worth of data
+    at the one time and create very large arrays of data between
+    specific times.
+* Add method to select a sub-region of FITS data to use before building
+  pandas DataFrame, or afterwards using DataFrame.truncate(start_date, end_date)
+* Create a generalized sunpy.TimeSeries object based on Lyra object below
+  and inherit from that object (may be better to have sunpy.TimeSeries inherit
+  from panda.TimeSeries or DataFrame first though).
+* Store units from hdulist
+
+See Also
+--------
+For current data plots see http://proba2.sidc.be
+
+References
+----------
+| http://proba2.sidc.be/index.html/science/lyra-analysis-manual/article/lyra-analysis-manual?menu=32
+
+"""
+import os
+import sys
+import urllib
+import urlparse
 import datetime
-from matplotlib import pyplot as plt
-import urllib,os, copy
-from sunpy.util.util import anytim
-from sunpy.time.util import TimeRange
+import pyfits
+import pandas
+import sunpy
 import numpy as np
+from matplotlib import pyplot as plt
 
-"""
-Main LYRA object
-"""
-class lyra:
-    def __init__(self,inputTime, nt = None):
-        """Initialise the LYRA object"""
-
-        # Basic structure that holds data and time
-        if nt != None:
-            self.data = np.zeros(shape=(4,nt),dtype=np.float32)
-            self.t    = np.zeros(shape=(nt,),dtype=np.float32)
-
-        # Number of time samples
-        self.nt = None
-
-        # Operations verbosity
-        self.verbose = True
-
-        # Original filename
-        self.filename = None
-
-        # FITS level of processing
-        self.level = 2
-
-        # data type
-        self.dataType = 'std'
-
-        # Where the data was originally downloaded to
-        self.downloadto = os.path.expanduser('~')+os.sep
-
-        # Where the data comes from
-        self.location = 'http://proba2.oma.be/lyra/data/bsd/'
-
-        # Filename prefix
-        self.prefix = 'lyra_'
-
-        # Date that the data comes from
-        self.time = anytim(inputTime)
-
-        # Time range on that date
-        self.tstart = self.time
-        self.tend = self.tstart + datetime.timedelta(days = 1)
-
-        
-    def download(self):
-        """ Function to download LYRA data, and/or set the filename where it can be found"""
-
-        self.time = anytim(self.time)
-
-        # date-based subdirectory
-        dateLocation = self.time.strftime('%Y/%m/%d/')
-
-        # date-based filename
-        dateFilename = self.time.strftime('%Y%m%d-')
-
-        # extension to the file name
-        extension = '000000_lev'+ str(self.level) + '_' + self.dataType + '.fits'
-
-        # calculated file name
-        requestedLocation = self.location + dateLocation
-        requestedFile  = self.prefix + dateFilename + extension
-
-        # determine if the file is already at the download location
-        f = os.path.expanduser(self.downloadto) + os.sep + requestedFile
-        isAlreadyThere = os.path.isfile(f)
-        
-        if isAlreadyThere:
-            if self.verbose:
-                print('File '+ f + ' already exists.')
-            self.filename = f
+class Lyra:
+    """Simple class for working with PROBA2 LYRA data"""
+    def __init__(self, input_, header=None):
+        """Create a new Lyra object instance"""
+        # DataFrame + Header
+        if (isinstance(input_, pandas.core.frame.DataFrame) and 
+            isinstance(header, pyfits.header.Header)):
+            self.data = input_
+            self.header = header           
+        # Filepath
+        elif isinstance(input_, basestring):
+            # Filepath
+            if os.path.isfile(input_):
+                self.load_file(input_)
+            else:
+                print "Invalid filepath specified."
+                sys.exit()
+        # Other
         else:
-            self.filename = urlDownload(requestedLocation,requestedFile, self.downloadto)
+            print "Unsupported input specified"""
+            sys.exit()
+            
+    def load_file(self, filepath):
+        """Loads LYRA data from a FITS file"""
+        # Open file with PyFITS
+        hdulist = pyfits.open(filepath)
+        fits_record = hdulist[1].data
 
-    def load(self):
-        """Load the FITS file data into the object"""
-        hdu = pyfits.open(self.filename)
-        self.data = hdu[1].data
-        self.columns = hdu[1].columns
-        hdu.close()
+        # Start and end dates
+        start_str = hdulist[0].header['date-obs']
+        end_str = hdulist[0].header['date-end']
+        
+        start = datetime.datetime.strptime(start_str, '%Y-%m-%dT%H:%M:%S.%f')
+        end = datetime.datetime.strptime(end_str, '%Y-%m-%dT%H:%M:%S.%f')
 
-        # define the start and end times 
-        self.tstart = self.time
-        self.tend = self.time + datetime.timedelta(seconds = self.data.field(0)[-1])
-        self.nt = self.data.field(0).size
+        # First column are times
+        times = [start + datetime.timedelta(0, n) for n in fits_record.field(0)]
 
-    def plot(self):
-        """Plot the LYRA data"""
-        names = self.columns.names
-        units = self.columns.units
-        time = self.data.field(0)
+        # Rest of columns are the data
+        table = {}
 
-        fig, axs = plt.subplots(4,1, sharex=True)
-
-        for j in range(1,5):
-            axs[j-1].plot(time,self.data.field(j))
-            axs[j-1].set_ylabel( names[j] + ' (' + units[j] + ')' )
-
-        axs[0].set_title(str(self.tstart) + ' - '+ str(self.tend))
-        plt.xlabel( names[0] + ' (' + units[0] + ')' )
+        for i, col in enumerate(fits_record.columns[1:-1]):
+            table[col.name] = fits_record.field(i + 1)
+            
+        # Create a Pandas DataFrame object
+        self.data = pandas.DataFrame(table, index=times)
+        self.header = hdulist[0].header
+        
+        
+    def discrete_boxcar_average(self, seconds=1):
+        """Computes a discrete boxcar average for the DataFrame"""
+        date_range = pandas.DateRange(self.data.index[0], self.data.index[-1], 
+                                      offset=pandas.datetools.Second(seconds))
+        grouped = self.data.groupby(date_range.asof)
+        subsampled = grouped.mean()
+        
+        return Lyra(subsampled, self.header.copy())
+        
+    def show(self):
+        """Plots the LYRA data
+        
+        See: http://pandas.sourceforge.net/visualization.html
+        """
+        axes = self.data.plot(subplots=True, sharex=True)       
+        plt.legend(loc='best')
+        
+        for i, name in enumerate(self.data.columns):
+            axes[i].set_ylabel("%s (%s" % (name, "UNITS"))
+            
+        axes[0].set_title("LYRA")
+        axes[-1].set_xlabel("Time")
         plt.show()
+        
+    @classmethod
+    def download(self, date, level=2, data_type='std'):
+        """Downloads LYRA data associated with the specified time and saves it
+        to the current working directory"""
+        dt = sunpy.time.parse_time(date)
 
-def urlDownload(requestedLocation,requestedFile, downloadto, verbose = False, overwrite=False):
-    """Download the requested file"""
-    url = requestedLocation + requestedFile
-    if verbose:
-        print('Downloading '+url+' to '+ downloadto + requestedFile)
-    f = urllib.urlretrieve(url, downloadto + requestedFile)
-    return downloadto + requestedFile
+        # Filepath
+        filename = "lyra_%s000000_lev%d_%s.fits" % (dt.strftime('%Y%m%d-'),
+                                                    level, data_type)
+        filepath = os.path.join(os.path.expanduser("~"), filename)
+        
+        # URL
+        base_url = "http://proba2.oma.be/lyra/data/bsd/"
+        url = urlparse.urljoin(base_url, dt.strftime('%Y/%m/%d/'), filename)
 
-def sub(lobj,t1,t2):
-    """Returns a subsection of LYRA data based on times
-         which is also a LYRA object."""
-    tr = TimeRange(t1,t2)
-    if tr.t1 < lobj.tstart:
-        print('Requested start time less than data start time.')
-        indexStart = 0
-    else:
-        indexStart = getLyraIndexGivenTime(lobj, tr.t1)
-    if tr.t2 > lobj.tend:
-        print('Requested end time greater than data start time.')
-        indexEnd = lobj.nt-1
-    else:
-        indexEnd = getLyraIndexGivenTime(lobj, tr.t2)
-    mask1 = lobj.data.field(0) > lobj.data.field(0)[indexStart]
-    mask2 = lobj.data.field(0) < lobj.data.field(0)[indexEnd]
-    newlobj = lyra(lobj.time)
-    newlobj.tstart = getLyraTimeGivenIndex(lobj,indexStart)
-    newlobj.tend = getLyraTimeGivenIndex(lobj,indexEnd)
-    newlobj.data = lobj.data[mask1*mask2]
-    newlobj.nt = newlobj.data.field(0).size
-    firstTime = newlobj.data.field(0)[0]
-    newlobj.data.field(0)[:] = newlobj.data.field(0)[:] - firstTime
-    newlobj.columns = lobj.columns
-    return newlobj
-
-
-def getLyraTimeGivenIndex(lobj,index):
-    """Given an index, return a time from the LYRA sample times"""
-    return lobj.time + datetime.timedelta(seconds = lobj.data.field(0)[index])
-
-def getLyraIndexGivenTime(lobj,targetTime):
-    """Given a target time, return an index based on the LYRA sample times"""
-    earlyIndex = 0
-    lateIndex = lobj.nt-1
-    midIndex = 0.5*(earlyIndex+lateIndex)
-    while ( (lateIndex-earlyIndex) > 1):
-        midIndex = np.around(0.5*(earlyIndex + lateIndex))
-        tmidpoint = getLyraTimeGivenIndex(lobj,midIndex)
-        if targetTime >= tmidpoint:
-            earlyIndex = midIndex
-        if targetTime < tmidpoint:
-            lateIndex = midIndex
-    return midIndex
-
-
-def sumup(lobj,binsize, average = True):
-    """Add up the data using a bin size in seconds"""
-    mask = np.zeros(shape=(lobj.nt,),dtype='bool')
-    binStart = np.array([],dtype='int')
-    binEnd = np.array([],dtype='int')
-    mask[:] = False
-    mask[0] = True
-    copydata = copy.deepcopy(lobj.data)
-    newlobj = lyra(lobj.time)
-    newlobj.columns = lobj.columns
-    iStart = 0
-    nNew = 0
-    # Count the number of elements in the summed array
-    while iStart < lobj.nt-1:    
-        iCount = sumupFind(lobj,binsize,iStart)
-        binStart = np.append(binStart,[iStart])
-        binEnd = np.append(binEnd,[iStart+iCount])
-        mask[iStart + iCount] = True
-        copydata.field(1)[iStart] = np.average(lobj.data.field(1)[ binStart[nNew]:binEnd[nNew] ] )
-        copydata.field(2)[iStart] = np.average(lobj.data.field(2)[ binStart[nNew]:binEnd[nNew] ] )
-        copydata.field(3)[iStart] = np.average(lobj.data.field(3)[ binStart[nNew]:binEnd[nNew] ] )
-        copydata.field(4)[iStart] = np.average(lobj.data.field(4)[ binStart[nNew]:binEnd[nNew] ] )
-        iStart = iStart + iCount + 1
-        nNew = nNew + 1
-
-    newlobj = lyra(lobj.time)
-    newlobj.tstart = getLyraTimeGivenIndex(lobj,0)
-    newlobj.tend = getLyraTimeGivenIndex(lobj,1)
-    newlobj.data = copydata[binStart[:]]
-    newlobj.nt = newlobj.data.field(0).size
-    firstTime = newlobj.data.field(0)[0]
-    newlobj.data.field(0)[:] = newlobj.data.field(0)[:] - firstTime
-    newlobj.columns = lobj.columns
-
-    return newlobj
-
-def sumupFind(lobj,binsize,iStart):
-    i = 0
-    iStartTime = getLyraTimeGivenIndex(lobj,iStart)
-    while (iStart + i < lobj.nt-1) and (getLyraTimeGivenIndex(lobj,iStart+i) < iStartTime + datetime.timedelta(seconds = binsize)):
-        i = i + 1
-    return i-1
-
-def subthensum(lobj,t1,t2,binsize,average = True):
-    """Subsection the time series then sum it up"""
-    n1 = sub(lobj,t1,t2)
-    return sumup(n1,binsize,average=average)
-
-class channelpicked:
-    """Get some properties of a particular channel"""
-    def __init__(self,lobj,choose):
-        self.units = lobj.columns[choose].name + ' ('+lobj.columns[choose].unit+')'
-        self.title =  str(lobj.tstart) + ' - ' + str(lobj.tend)
-        self.ylabel = 'normalized'
-        self.xlabel = lobj.columns[0].name + ' ('+lobj.columns[0].unit+')'
-        self.data = lobj.data.field(choose)[:]
-        self.dt = lobj.data.field(0)[1] - lobj.data.field(0)[0]
-        self.time = lobj.data.field(0)[:]
-
-def channel(lobj,choose):
-    """Pick a channel from the LYRA data"""
-    return channelpicked(lobj,choose)
+        # Save file
+        urllib.urlretrieve(url, filepath)        
