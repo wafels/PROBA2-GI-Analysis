@@ -52,7 +52,7 @@ class URLLister(SGMLParser):
 # Simple function to acquire LYRA data
 #
 def getData(inputTime, level = 2, dataType = 'std', downloadto = '/Users/ireland/PROBA2_GI/dat/fits/', verbose = False):
-
+    pass
 #
 # general purpose downloader using wget
 #
