@@ -2,25 +2,8 @@
 Provides programs to process and analyze LYRA data. This module is
 currently in development.
 
-Examples
---------
-In [1]: lyra = Lyra('lyra_20120320-000000_lev1_std.fits')
-In [2]: lyra.discrete_boxcar_average().show()
-In [3]: lyra.data['CHANNEL1']
-Out[3]: 
-2012-03-20 00:00:00.090000    19.264077
-2012-03-20 00:00:00.140000    19.244072
-...
-2012-03-20 23:59:59.939000    21.564563
-2012-03-20 23:59:59.989000    21.524555
-Name: CHANNEL1, Length: 1725538
-In [4]: lyra.data['CHANNEL1'].values
-Out[4]: 
-array([ 19.264077,  19.244072,  19.204064, ...,  21.564563,  21.564563,
-        21.524555])
-
-To Do
------
+TODO
+----
 * An object should be developed to encapsulate all of LYRA functionality
 * LYRA FITS files store one day's of data at a time.  A simple extension
     of the code would make it easy download multiple days worth of data
@@ -31,11 +14,14 @@ To Do
 * Create a generalized sunpy.TimeSeries object based on Lyra object below
   and inherit from that object (may be better to have sunpy.TimeSeries inherit
   from panda.TimeSeries or DataFrame first though).
+* Normalize download interface for LYRA, EVE, GOES, etc.
 * Store units from hdulist
+* Update header data when data is changed
+* Test with partial data from current day
 
 See Also
 --------
-For current data plots see http://proba2.sidc.be
+* http://proba2.sidc.be
 
 References
 ----------
@@ -54,9 +40,47 @@ import numpy as np
 from matplotlib import pyplot as plt
 
 class Lyra:
-    """Simple class for working with PROBA2 LYRA data"""
+    """Simple class for working with PROBA2 LYRA data
+    
+    Parameters
+    ----------
+    input_ : string, pandas.core.frame.DataFrame
+        Either a filepath to a Lyra FITS file to open, or a pandas DataFrame
+        instance for such a file.
+    header : pyfits.header.Header
+        A PyFITS header instance. This is used when a new Lyra instance
+        is created using an existing one.
+    
+    Attributes
+    ----------
+    data : pandas.core.frame.DataFrame
+        A pandas DataFrame instance containing the LYRA data
+    header : pyfits.header.Header
+        A PyFITS header instance with the header tags associated with the LYRA
+        data file.
+        
+    Examples
+    --------
+    >>> lyra = Lyra('lyra_20120320-000000_lev1_std.fits')
+    >>> lyra.data['CHANNEL1']
+    2012-03-20 00:00:00.090000    19.264077
+    2012-03-20 00:00:00.140000    19.244072
+    ...
+    2012-03-20 23:59:59.939000    21.564563
+    2012-03-20 23:59:59.989000    21.524555
+    Name: CHANNEL1, Length: 1725538
+    >>> lyra.data['CHANNEL1'].values
+    array([ 19.264077,  19.244072,  19.204064, ...,  21.564563,  21.564563,
+            21.524555])
+    >>> lyra.discrete_boxcar_average().show()
+    
+    References
+    ----------
+    | http://proba2.oma.be/index.html/science/lyra-analysis-manual/article/lyra-analysis-manual?menu=32
+    
+    """
     def __init__(self, input_, header=None):
-        """Create a new Lyra object instance"""
+        """Lyra Constructor"""
         # DataFrame + Header
         if (isinstance(input_, pandas.core.frame.DataFrame) and 
             isinstance(header, pyfits.header.Header)):
@@ -110,6 +134,12 @@ class Lyra:
         subsampled = grouped.mean()
         
         return Lyra(subsampled, self.header.copy())
+    
+    def truncate(self, start, end):
+        """Returns a truncated version of the Lyra object"""
+        truncated = self.data.truncate(sunpy.time.parse_time(start),
+                                       sunpy.time.parse_time(end))
+        return Lyra(truncated, self.header.copy())
         
     def show(self):
         """Plots the LYRA data
@@ -127,19 +157,42 @@ class Lyra:
         plt.show()
         
     @classmethod
-    def download(self, date, level=2, data_type='std'):
+    def download(self, date=None, directory="~", level=2, data_type='std'):
         """Downloads LYRA data associated with the specified time and saves it
-        to the current working directory"""
-        dt = sunpy.time.parse_time(date)
+        to the current working directory
+        
+        Parameters
+        ----------
+        date : datetime, string
+            A datetime object or date string indicating the date for which
+            date should be downloaded.
+        directory : string
+            The directory to save files to.
+        level : int
+            The processing level to download
+        date_type : string
+            The type of LYRA file to request. Currently only "std" supported.
+            
+        Returns
+        -------
+        out : Lyra
+            A Lyra object instance for the file downloaded
+        """
+        dt = sunpy.time.parse_time(date or datetime.datetime.utcnow())
 
         # Filepath
         filename = "lyra_%s000000_lev%d_%s.fits" % (dt.strftime('%Y%m%d-'),
                                                     level, data_type)
-        filepath = os.path.join(os.path.expanduser("~"), filename)
+        filepath = os.path.join(os.path.expanduser(directory), filename)
         
         # URL
         base_url = "http://proba2.oma.be/lyra/data/bsd/"
-        url = urlparse.urljoin(base_url, dt.strftime('%Y/%m/%d/'), filename)
+        url = urlparse.urljoin(base_url, urlparse.urljoin(dt.strftime('%Y/%m/%d/'), filename))
 
         # Save file
-        urllib.urlretrieve(url, filepath)        
+        urllib.urlretrieve(url, filepath)
+        
+        return Lyra(filepath)
+    
+if __name__=="__main__":
+    Lyra.download()   
