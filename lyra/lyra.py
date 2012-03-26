@@ -200,12 +200,16 @@ class Lyra:
         
         # URL
         base_url = "http://proba2.oma.be/lyra/data/bsd/"
-        url = urlparse.urljoin(base_url, urlparse.urljoin(dt.strftime('%Y/%m/%d/'), filename))
+        url_path = urlparse.urljoin(dt.strftime('%Y/%m/%d/'), filename)
+        url = urlparse.urljoin(base_url, url_path)
 
         # Save file
-        urllib.urlretrieve(url, filepath)
+        print ("Downloading %s" % filename)
         
+        try:            
+            urllib.urlretrieve(url, filepath)
+        except IOError:
+            print("Error downloading %s. Is data available for that day?" % url)
+            return
+
         return Lyra(filepath)
-    
-if __name__=="__main__":
-    x = Lyra('/home/hughitt1/Downloads/lyra_20120320-000000_lev1_std.fits', end='2012/03/20 01:00:00') 
