@@ -171,9 +171,7 @@ class Lyra:
     def download(self, date=None, directory="~", level=2, data_type='std'):
         """Downloads LYRA data associated with the specified time and saves it
         to the current working directory
-        
-        TODO: Catch 404 errors.
-        
+
         Parameters
         ----------
         date : datetime, string
