@@ -18,6 +18,8 @@ TODO
 * Store units from hdulist
 * Update header data when data is changed
 * Test with partial data from current day
+* When start or end dates are specified in the constructor truncate data in
+  PyFITS before loading it into Lyra.
 
 See Also
 --------
@@ -79,7 +81,7 @@ class Lyra:
     | http://proba2.oma.be/index.html/science/lyra-analysis-manual/article/lyra-analysis-manual?menu=32
     
     """
-    def __init__(self, input_, header=None):
+    def __init__(self, input_, header=None, start=None, end=None):
         """Lyra Constructor"""
         # DataFrame + Header
         if (isinstance(input_, pandas.core.frame.DataFrame) and 
@@ -98,6 +100,10 @@ class Lyra:
         else:
             print "Unsupported input specified"""
             sys.exit()
+            
+        # Restrict data if request
+        if start is not None or end is not None:
+            self.data = self.truncate(start, end).data
             
     def load_file(self, filepath):
         """Loads LYRA data from a FITS file"""
@@ -135,8 +141,13 @@ class Lyra:
         
         return Lyra(subsampled, self.header.copy())
     
-    def truncate(self, start, end):
+    def truncate(self, start=None, end=None):
         """Returns a truncated version of the Lyra object"""
+        if start is None:
+            start = self.data.index[0]
+        if end is None:
+            end = self.data.index[-1]
+        
         truncated = self.data.truncate(sunpy.time.parse_time(start),
                                        sunpy.time.parse_time(end))
         return Lyra(truncated, self.header.copy())
@@ -160,6 +171,8 @@ class Lyra:
     def download(self, date=None, directory="~", level=2, data_type='std'):
         """Downloads LYRA data associated with the specified time and saves it
         to the current working directory
+        
+        TODO: Catch 404 errors.
         
         Parameters
         ----------
@@ -195,4 +208,4 @@ class Lyra:
         return Lyra(filepath)
     
 if __name__=="__main__":
-    Lyra.download()   
+    x = Lyra('/home/hughitt1/Downloads/lyra_20120320-000000_lev1_std.fits', end='2012/03/20 01:00:00') 
