@@ -39,7 +39,7 @@ def main():
     tstart = datetime.datetime(2011,3,5)
     tend = datetime.datetime(2011,3,6)
 
-    result = hek_acquire(tstart, tend, directory = '~/Data/proba2/lyra/hek/', verbose = True )
+    result = hek_acquire(tstart, tend, directory = '~/Data/HEK/', verbose = True )
     
     # get the unique feature recognition methods
     hek_frms = list( set( [ x['frm_name'] for x in result ] ) )
@@ -51,7 +51,7 @@ def main():
     # a flare in each method was detected.
     hek_detections = {}
     for frm in hek_frms:
-        hek_detections[frm] = None
+        hek_detections[frm] = False
 
     # Create the pandas dataframe
     detected_times = pandas.DataFrame(hek_detections, index = hek_times)
@@ -63,8 +63,8 @@ def main():
         
         event_time = pandas.DateRange(event_starttime, event_endtime, offset = pandas.datetools.Second() )
         detected_times[x['frm_name']][event_time] = True
-        
-    print detected_times['SEC standard']
+    
+    detected_times.plot()
     # The dataframe contains when each method detected a flare.
     
     # calculate the "agreement" between FRMs
