@@ -49,9 +49,11 @@ def main():
     
     # Create a dictionary that will be the pandas dataframe that will not when a
     # a flare in each method was detected.
+    all_frms_name = 'All FRMs'
     hek_detections = {}
     for frm in hek_frms:
         hek_detections[frm] = False
+    hek_detections[all_frms_name] = False
 
     # Create the pandas dataframe
     detected_times = pandas.DataFrame(hek_detections, index = hek_times)
@@ -63,6 +65,7 @@ def main():
         
         event_time = pandas.DateRange(event_starttime, event_endtime, offset = pandas.datetools.Second() )
         detected_times[x['frm_name']][event_time] = True
+        detected_times[x[all_frms_name]][event_time] = True
     
     detected_times.plot()
     # The dataframe contains when each method detected a flare.
