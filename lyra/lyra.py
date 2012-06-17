@@ -38,7 +38,6 @@ import datetime
 import pyfits
 import pandas
 import sunpy
-import numpy as np
 from matplotlib import pyplot as plt
 
 class Lyra:
@@ -113,10 +112,10 @@ class Lyra:
 
         # Start and end dates
         start_str = hdulist[0].header['date-obs']
-        end_str = hdulist[0].header['date-end']
+        #end_str = hdulist[0].header['date-end']
         
         start = datetime.datetime.strptime(start_str, '%Y-%m-%dT%H:%M:%S.%f')
-        end = datetime.datetime.strptime(end_str, '%Y-%m-%dT%H:%M:%S.%f')
+        #end = datetime.datetime.strptime(end_str, '%Y-%m-%dT%H:%M:%S.%f')
 
         # First column are times
         times = [start + datetime.timedelta(0, n) for n in fits_record.field(0)]
