@@ -1,9 +1,11 @@
 from sunpy.net import hek
 from sunpy.time import parse_time
+from sunpy import lightcurve
 import os
 import datetime
 import pickle
 import pandas
+import matplotlib.pyplot as plt
 
 def hek_acquire(tstart, tend, EventType='FL', directory = '~', verbose = False, filename = None):
     """acquire HEK results from file, or download and save them"""
@@ -50,10 +52,12 @@ def main():
     # Create a dictionary that will be the pandas dataframe that will not when a
     # a flare in each method was detected.
     all_frms_name = 'All FRMs'
+    fractional_name = 'fractional detection'
     hek_detections = {}
     for frm in hek_frms:
         hek_detections[frm] = False
     hek_detections[all_frms_name] = False
+    hek_detections[fractional_name] = 0.0
 
     # Create the pandas dataframe
     detected_times = pandas.DataFrame(hek_detections, index = hek_times)
@@ -65,11 +69,13 @@ def main():
         
         event_time = pandas.DateRange(event_starttime, event_endtime, offset = pandas.datetools.Second() )
         detected_times[x['frm_name']][event_time] = True
-        detected_times[x[all_frms_name]][event_time] = True
-    
+        detected_times[all_frms_name][event_time] = True
+        detected_times[fractional_name][event_time] = detected_times[fractional_name][event_time] + 1.0
+    detected_times[fractional_name] = detected_times[fractional_name]/len(hek_frms)
     detected_times.plot()
     # The dataframe contains when each method detected a flare.
     
+
     # calculate the "agreement" between FRMs
     
     # calculate the probability that the event occurred based on the FRM detections
