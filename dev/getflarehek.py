@@ -35,14 +35,8 @@ def hek_acquire(tstart, tend, EventType='FL', directory = '~', verbose = False, 
 
     return result
 
+def hek_detection_times(tstart,tend,result, all_frms_name = 'All FRMs', number_name = 'number'):
 
-def main():
-
-    tstart = datetime.datetime(2011,3,5)
-    tend = datetime.datetime(2011,3,6)
-
-    result = hek_acquire(tstart, tend, directory = '~/Data/HEK/', verbose = True )
-    
     # get the unique feature recognition methods
     hek_frms = list( set( [ x['frm_name'] for x in result ] ) )
     
@@ -51,14 +45,12 @@ def main():
     
     # Create a dictionary that will be the pandas dataframe that will not when a
     # a flare in each method was detected.
-    all_frms_name = 'All FRMs'
-    fractional_name = 'fractional detection'
+    
     hek_detections = {}
     for frm in hek_frms:
         hek_detections[frm] = False
     hek_detections[all_frms_name] = False
-    hek_detections[fractional_name] = 0.0
-
+    hek_detections[number_name] = 0.0
     # Create the pandas dataframe
     detected_times = pandas.DataFrame(hek_detections, index = hek_times)
 
@@ -70,17 +62,22 @@ def main():
         event_time = pandas.DateRange(event_starttime, event_endtime, offset = pandas.datetools.Second() )
         detected_times[x['frm_name']][event_time] = True
         detected_times[all_frms_name][event_time] = True
-        detected_times[fractional_name][event_time] = detected_times[fractional_name][event_time] + 1.0
-    detected_times[fractional_name] = detected_times[fractional_name]/len(hek_frms)
-    detected_times.plot()
-    # The dataframe contains when each method detected a flare.
-    
+        detected_times[number_name][event_time] = detected_times[number_name][event_time] + 1.0
 
-    # calculate the "agreement" between FRMs
-    
-    # calculate the probability that the event occurred based on the FRM detections
+    return detected_times
 
+def main():
 
+    tstart = datetime.datetime(2011,3,5)
+    tend = datetime.datetime(2011,3,6)
+
+    result = hek_acquire(tstart, tend, directory = '~/Data/HEK/', verbose = True )
+
+    detected_times = hek_detection_times(tstart, tend, result)
+
+    detected_times['number'].plot()
+
+    return detected_times
 
 if __name__ == '__main__':
     main()
