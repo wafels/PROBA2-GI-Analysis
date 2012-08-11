@@ -9,8 +9,49 @@ import pandas
 import matplotlib.pyplot as plt
 
 #
-# Should really define an HEK object which has these methods
+# Should really define an HEK interrogation object which has these methods
 #
+class fevent:
+    """
+    Feature and event interrogation object
+    
+    Simple interrogation of the HEK results.
+
+    Parameters
+    ----------
+    args : filepath, url, or start and end dates
+        The input for a LightCurve object should either be a filepath, a URL,
+        or a date range to be queried for the particular instrument.
+
+    Attributes
+    ----------
+    data : pandas.DataFrame
+        An pandas DataFrame prepresenting one or more fields as they vary with 
+        respect to time.
+    header : string, dict
+        The comment string or header associated with the light curve input
+
+    Examples
+    --------
+    >>> import sunpy
+    >>> import datetime
+    >>> base = datetime.datetime.today()
+    >>> dates = [base - datetime.timedelta(minutes=x) for x in 
+    range(0, 24 * 60)]
+    >>> light_curve = sunpy.lightcurve.LightCurve({"param1": range(24 * 60)}, 
+    index=dates)
+    >>> light_curve.show()
+
+    References
+    ----------
+    | http://pandas.pydata.org/pandas-docs/dev/dsintro.html
+
+    """
+    def __init__(self, *args, **kwargs):
+        self._filename = ""
+        header = None
+
+
 def hek_acquire(tstart, tend, EventType='FL', directory = '~', verbose = False, filename = None):
     """acquire HEK results from file, or download and save them"""
     
