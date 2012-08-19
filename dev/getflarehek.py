@@ -17,99 +17,128 @@ class fevent:
     
     Simple interrogation of the HEK results.
 
-    Parameters
-    ----------
-    args : filepath, url, or start and end dates
-        The input for a LightCurve object should either be a filepath, a URL,
-        or a date range to be queried for the particular instrument.
-
-    Attributes
-    ----------
-    data : pandas.DataFrame
-        An pandas DataFrame prepresenting one or more fields as they vary with 
-        respect to time.
-    header : string, dict
-        The comment string or header associated with the light curve input
-
-    Examples
-    --------
-    >>> import sunpy
-    >>> import datetime
-    >>> base = datetime.datetime.today()
-    >>> dates = [base - datetime.timedelta(minutes=x) for x in 
-    range(0, 24 * 60)]
-    >>> light_curve = sunpy.lightcurve.LightCurve({"param1": range(24 * 60)}, 
-    index=dates)
-    >>> light_curve.show()
-
-    References
-    ----------
-    | http://pandas.pydata.org/pandas-docs/dev/dsintro.html
-
     """
-    def __init__(self, *args, **kwargs):
-        self._filename = ""
-        header = None
-
-
-def hek_acquire(tstart, tend, EventType='FL', directory = '~', verbose = False, filename = None):
-    """acquire HEK results from file, or download and save them"""
-    
-    # standard extension
-    extension = '.hek.' + EventType + '.pickle'
-    # create a client
-    client = hek.HEKClient()
-    
-    # create a filename if none passed
-    if filename == None:
-        filename = tstart.strftime("%Y%m%d_%H%M%S") + '__' + tend.strftime("%Y%m%d_%H%M%S") + extension
-
-    # get the full file path
-    filepath = os.path.join(os.path.expanduser(directory), filename)
-    
-    # either load the data or go get it
-    if os.path.isfile(filepath):
-        if verbose:
-            print('Loading local file: ' + filepath)
-        result = pickle.load(open( filepath, "rb" ) )
-    else:
-        if verbose:
-            print('Querying HEK for data and will save to following file: '+ filepath)
-        result = client.query(hek.attrs.Time(tstart,tend), hek.attrs.EventType(EventType))
-        pickle.dump(result, open( filepath, "wb" ))
-
-    return result
-
-def hek_detection_times(tstart,tend,result, all_frms_name = 'All FRMs', number_name = 'number'):
-
-    # get the unique feature recognition methods
-    hek_frms = list( set( [ x['frm_name'] for x in result ] ) )
-    
-    # Get a list of datetime objects spanning the requested time range
-    hek_times = pandas.DateRange(tstart, tend, offset = pandas.datetools.Second())
-    
-    # Create a dictionary that will be the pandas dataframe that will not when a
-    # a flare in each method was detected.
-    
-    hek_detections = {}
-    for frm in hek_frms:
-        hek_detections[frm] = 1
-    hek_detections[all_frms_name] = 1
-    hek_detections[number_name] = 1
-    # Create the pandas dataframe
-    detected_times = pandas.DataFrame(hek_detections, index = hek_times)
-
-    # For each result get when it occurred. Classify by feature recognition method.
-    for x in result:
-        event_starttime = max( (parse_time(x['event_starttime']), hek_times[0]) )
-        event_endtime =   min( (parse_time(x['event_endtime']  ), hek_times[-1]) )
+    def __init__(self, tstart, tend=None, event_type='FL', extension=None,
+                 directory='~', verbose=False, filename=None):
+        """acquire HEK results from file, or download and save them"""
         
-        event_time = pandas.DateRange(event_starttime, event_endtime, offset = pandas.datetools.Second() )
-        detected_times[x['frm_name']][event_time] = 1
-        detected_times[all_frms_name][event_time] = 1
-        detected_times[number_name][event_time] = detected_times[number_name][event_time] + 1
+        # define the start and end times of the query
+        self.tstart = parse_time(tstart)
+        if tend is None:
+            self.tend = self.tstart + datetime.timedelta(days=1)
+        else:
+            self.tend = parse_time(tend)
+         
+        # event type
+        self.event_type = event_type
+  
+        # extension
+        if extension is None:
+            self.extension = '.hek.' + self.event_type + '.pickle'
+        else:
+            self.extension = extension
+        
+        # directory
+        self.directory = directory
+   
+        # create a filename if none passed
+        if filename is None:
+            self.filename = self.tstart.strftime("%Y%m%d_%H%M%S") + '__' + 
+            self.tend.strftime("%Y%m%d_%H%M%S") + 
+            self.extension
 
-    return detected_times
+        # get the full file path
+        self.filepath = os.path.join(os.path.expanduser(self.directory), 
+                                     self.filename)
+    
+        # either load the data or go get it
+        if os.path.isfile(self.filepath):
+            if verbose:
+                print('Loading local file: ' + self.filepath)
+            self.result = pickle.load(open( self.filepath, "rb" ) )
+        else:
+            if verbose:
+                print('Querying HEK for data and will save to following file: '+
+                       self.filepath)
+
+            client = hek.HEKClient()
+            self.result = client.query(hek.attrs.Time(self.tstart,self.tend), 
+                                  hek.attrs.EventType(self.event_type))
+            pickle.dump(result, open( self.filepath, "wb" ))
+
+    def onoff(self, frm_name='all', tstart=None, tend=None, 
+              operator = ['>=','<=','and']):
+        """Return a single pandas timeseries that indicates when all the
+        events within tstart and tend have occurred.  The duration of the
+        event is indicated by the value 1."""
+        
+        # Get the event start and end times
+        result = self.times(frm_name=frm_name, tstart=tstart, tend=tend, 
+                            operator=operator)
+
+        # Create the pandas time series
+        index = pandas.DateRange(self.tstart, self.tend, 
+                                 offset=pandas.datetools.Second() )
+        time_series = pandas.Series(1, index = index)
+       
+        # Go through each result and get the start and end times
+        for x in result:
+            time_series[ pandas.DateRange(x[0], x[1], offset = 
+                                          pandas.datetools.Second())] = 1
+        return time_series
+    
+    def times(self, frm_name='all', tstart=None, tend=None, 
+              operator = ['>=','<=','and']):
+        """Return a list of start and end times within the requested time range
+        with the correct logic on the event time comparison"""
+
+        # Parse and check the input times
+        if tstart is None:
+            tstart = parse_time(self.tstart)
+        else:
+            tstart = parse_time(tstart)
+        if tend is None:
+            tend = parse_time(self.tend)
+        else:
+            tend = parse_time(tend)
+        if tstart > tend:
+            print('Start time is larger than the end time')
+            return None
+
+        # Get and check the unique feature recognition methods
+        frms = list( set( [ x['frm_name'] for x in result ] ) )
+        if not(frm_name in frms) and frm_name != 'all':
+            print('frm_name not recognised')
+            return None
+
+        # Limits to the times
+        lo_limit = max( (index[0],tstart) )
+        hi_limit = min( (index[-1],tend) )
+
+        # Go through each result and get the start and end times
+        events = []
+        for x in self.result:
+            event_starttime = parse_time(x['event_starttime'])
+            event_endtime = parse_time(x['event_endtime'])
+            
+            # implement the requested comparison of the event times with
+            # the limit of the extent of the time range
+            if operator[0] == 'None':
+                lo_logic = None
+            else:
+                lo_logic = eval('event_starttime' + operator[0] + 'lo_limit')
+            if operator[1] == 'None':
+                hi_logic = None
+            else:
+                hi_logic = eval('event_endtime' + operator[1] + 'hi_limit')
+            
+            if eval('lo_logic' + operator[2] + 'hi_logic')
+                if x['frm_name'] == frm_name:
+                    events = events[(event_starttime, event_endtime)]
+                elif frm_name == 'all':
+                    events = events[(event_starttime, event_endtime)]
+        return events
+
 
 def hek_split_timeline(timeline):
     """ Get the start and end times of all the events in a time line, and
@@ -128,11 +157,16 @@ def hek_split_timeline(timeline):
 
 def main():
 
-    tstart = datetime.datetime(2011,3,5)
-    tend = datetime.datetime(2011,3,5,23,59,59)
+    tstart = '2011/03/05'
 
     # acquire the HEK data
-    result = hek_acquire(tstart, tend, directory = '~/Data/HEK/', verbose = True )
+    result = fevent(tstart, directory='~/Data/HEK/', verbose=True)
+    
+    # get a lightcurve of when an event was detected
+    detected = fevent.onoff()
+    
+    # get a lightcurve of when an event was not detected
+    no_detection = 1 - detected
 
     # calculate the detection times from the event times
     detected_times = hek_detection_times(tstart, tend, result)
