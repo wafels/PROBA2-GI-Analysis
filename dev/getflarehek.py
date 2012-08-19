@@ -1,7 +1,7 @@
 from sunpy.net import hek
 from sunpy.time import parse_time
 from sunpy import lightcurve
-from scipy import scipy.ndimage.label as label
+from scipy.ndimage import label
 import os
 import datetime
 import pickle
@@ -43,8 +43,8 @@ class fevent:
    
         # create a filename if none passed
         if filename is None:
-            self.filename = self.tstart.strftime("%Y%m%d_%H%M%S") + '__' + 
-            self.tend.strftime("%Y%m%d_%H%M%S") + 
+            self.filename = self.tstart.strftime("%Y%m%d_%H%M%S") + '__' + \
+            self.tend.strftime("%Y%m%d_%H%M%S") + \
             self.extension
 
         # get the full file path
@@ -64,7 +64,7 @@ class fevent:
             client = hek.HEKClient()
             self.result = client.query(hek.attrs.Time(self.tstart,self.tend), 
                                   hek.attrs.EventType(self.event_type))
-            pickle.dump(result, open( self.filepath, "wb" ))
+            pickle.dump(self.result, open( self.filepath, "wb" ))
 
     def onoff(self, frm_name='all', tstart=None, tend=None, 
               operator = ['>=','<=','and']):
@@ -79,12 +79,11 @@ class fevent:
         # Create the pandas time series
         index = pandas.DateRange(self.tstart, self.tend, 
                                  offset=pandas.datetools.Second() )
-        time_series = pandas.Series(1, index = index)
+        time_series = pandas.Series(0, index = index)
        
         # Go through each result and get the start and end times
         for x in result:
-            time_series[ pandas.DateRange(x[0], x[1], offset = 
-                                          pandas.datetools.Second())] = 1
+            time_series[x[0]:x[1]] = 1
         return time_series
     
     def times(self, frm_name='all', tstart=None, tend=None, 
@@ -106,11 +105,14 @@ class fevent:
             return None
 
         # Get and check the unique feature recognition methods
-        frms = list( set( [ x['frm_name'] for x in result ] ) )
+        frms = list( set( [ x['frm_name'] for x in self.result ] ) )
         if not(frm_name in frms) and frm_name != 'all':
             print('frm_name not recognised')
             return None
-
+        
+        # define the index
+        index = pandas.DateRange(self.tstart, self.tend, 
+                                 offset=pandas.datetools.Second() )
         # Limits to the times
         lo_limit = max( (index[0],tstart) )
         hi_limit = min( (index[-1],tend) )
@@ -132,27 +134,29 @@ class fevent:
             else:
                 hi_logic = eval('event_endtime' + operator[1] + 'hi_limit')
             
-            if eval('lo_logic' + operator[2] + 'hi_logic')
+            if eval('lo_logic ' + operator[2] + ' hi_logic'):
                 if x['frm_name'] == frm_name:
-                    events = events[(event_starttime, event_endtime)]
+                    events.append( (event_starttime, event_endtime) )
                 elif frm_name == 'all':
-                    events = events[(event_starttime, event_endtime)]
+                    events.append( (event_starttime, event_endtime) )
         return events
 
 
-def hek_split_timeline(timeline):
+def get_times_onoff(timeline):
     """ Get the start and end times of all the events in a time line, and
     the start and end times of all the times when nothing happened """
+    
     def hek_split_this(timeline):
         """Label all the individual events in a timeline, and return the
            start and end times """
-        labels, numL = label(timeline)
-        eventindices = [(labels == i).nonzero() for i in xrange(1, numL+1)]
+        labeling = label(timeline)
+        eventindices = [(labeling[0] == i).nonzero() for i in xrange(1, labeling[1]+1)]
         timeranges = []
         for event in eventindices:
-            timeranges.append( timeline.index([event[0],event[-1]]) )
+            timeranges.append( (timeline.index[ event[0] ],
+                                timeline.index[ event[-1] ] ) )
         return timeranges
-    return hek_split_this(timeline), hek_split_this(1-timeline)
+    return hek_split_this(timeline)
 
 
 def main():
@@ -163,16 +167,14 @@ def main():
     result = fevent(tstart, directory='~/Data/HEK/', verbose=True)
     
     # get a lightcurve of when an event was detected
-    detected = fevent.onoff()
+    all_onoff = result.onoff(frm_name = 'all')
     
-    # get a lightcurve of when an event was not detected
-    no_detection = 1 - detected
-
-    # calculate the detection times from the event times
-    detected_times = hek_detection_times(tstart, tend, result)
+   # get a lightcurve of when an event was detected
+    event_all_times = get_times_onoff(all_onoff)
     
-    # get the event label times, and the non-event label times
-    eventtimes, noneventtimes = hek_split_timeline(detected_times["all_frms"])
+    # get a lightcurve 
+    no_event_times = get_times_onoff(1-all_onoff)
+  
 
     # acquire the LYRA data
     lyra = sunpy.lightcurve.LYRALightCurve(tstart)
