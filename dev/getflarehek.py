@@ -2,6 +2,7 @@ from sunpy.net import hek
 from sunpy.time import parse_time
 from sunpy import lightcurve
 from scipy.ndimage import label
+import numpy as np
 import os
 import datetime
 import pickle
@@ -77,9 +78,8 @@ class fevent:
                             operator=operator)
 
         # Create the pandas time series
-        index = pandas.DateRange(self.tstart, self.tend, 
-                                 offset=pandas.datetools.Second() )
-        time_series = pandas.Series(0, index = index)
+        index = pandas.date_range(self.tstart, self.tend, freq = 'S')
+        time_series = pandas.Series(np.zeros(len(index)), index = index)
        
         # Go through each result and get the start and end times
         for x in result:
@@ -111,8 +111,8 @@ class fevent:
             return None
         
         # define the index
-        index = pandas.DateRange(self.tstart, self.tend, 
-                                 offset=pandas.datetools.Second() )
+        index = pandas.date_range(self.tstart, self.tend, freq = 'S')
+
         # Limits to the times
         lo_limit = max( (index[0],tstart) )
         hi_limit = min( (index[-1],tend) )
@@ -141,23 +141,16 @@ class fevent:
                     events.append( (event_starttime, event_endtime) )
         return events
 
-
 def get_times_onoff(timeline):
-    """ Get the start and end times of all the events in a time line, and
-    the start and end times of all the times when nothing happened """
-    
-    def hek_split_this(timeline):
-        """Label all the individual events in a timeline, and return the
-           start and end times """
-        labeling = label(timeline)
-        eventindices = [(labeling[0] == i).nonzero() for i in xrange(1, labeling[1]+1)]
-        timeranges = []
-        for event in eventindices:
-            timeranges.append( (timeline.index[ event[0] ],
-                                timeline.index[ event[-1] ] ) )
-        return timeranges
-    return hek_split_this(timeline)
-
+    """Label all the individual events in a timeline, and return the
+       start and end times """
+    labeling = label(timeline)
+    eventindices = [(labeling[0] == i).nonzero() for i in xrange(1, labeling[1]+1)]
+    timeranges = []
+    for event in eventindices:
+        timeranges.append( (timeline.index[ event[0] ],
+                            timeline.index[ event[-1] ] ) )
+    return timeranges
 
 def main():
 
@@ -169,24 +162,19 @@ def main():
     # get a lightcurve of when an event was detected
     all_onoff = result.onoff(frm_name = 'all')
     
-   # get a lightcurve of when an event was detected
+    # get a lightcurve of when an event was detected
     event_all_times = get_times_onoff(all_onoff)
     
-    # get a lightcurve 
+    # get a lightcurve
     no_event_times = get_times_onoff(1-all_onoff)
-  
 
     # acquire the LYRA data
-    lyra = sunpy.lightcurve.LYRALightCurve(tstart)
+    lyra = lightcurve.LYRALightCurve(tstart)
 
     # subset the time-series for each event
-    for event in eventtimes:
-        this = lyra[event]
-        # perform the necessary analysis on this event
-        
 
 
-    return detected_times
+    return None
 
 if __name__ == '__main__':
     main()
