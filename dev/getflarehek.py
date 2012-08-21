@@ -7,8 +7,6 @@ import os
 import datetime
 import pickle
 import pandas
-import matplotlib.pyplot as plt
-
 #
 # Should really define an HEK interrogation object which has these methods
 #
@@ -145,11 +143,16 @@ def get_times_onoff(timeline):
     """Label all the individual events in a timeline, and return the
        start and end times """
     labeling = label(timeline)
-    eventindices = [(labeling[0] == i).nonzero() for i in xrange(1, labeling[1]+1)]
+    #eventindices = [(labeling[0] == i).nonzero() for i in xrange(1, labeling[1]+1)]
+    #timeranges = []
+    #for event in eventindices:
+    #    timeranges.append( (timeline.index[ event[0] ],
+    #                        timeline.index[ event[-1] ] ) )
     timeranges = []
-    for event in eventindices:
-        timeranges.append( (timeline.index[ event[0] ],
-                            timeline.index[ event[-1] ] ) )
+    for i in xrange(1, labeling[1]+1):
+        eventindices = (labeling[0] == i).nonzero()
+        timeranges.append( (timeline.index[ eventindices[0][0] ],
+                            timeline.index[ eventindices[0][-1] ]) )
     return timeranges
 
 def main():
@@ -172,7 +175,6 @@ def main():
     lyra = lightcurve.LYRALightCurve(tstart)
 
     # subset the time-series for each event
-
 
     return None
 
