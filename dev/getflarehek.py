@@ -24,7 +24,8 @@ class fevent:
         # define the start and end times of the query
         self.tstart = parse_time(tstart)
         if tend is None:
-            self.tend = self.tstart + datetime.timedelta(days=1)
+            self.tend = self.tstart + \
+            datetime.timedelta(days=1)
         else:
             self.tend = parse_time(tend)
          
@@ -159,20 +160,27 @@ def main():
 
     tstart = '2011/03/05'
 
-    # acquire the HEK data
+    # Acquire the HEK data
     result = fevent(tstart, directory='~/Data/HEK/', verbose=True)
     
-    # get a lightcurve of when an event was detected
+    # Get a pandas Series of binary values indicating when an event was 
+    # detected by any detection method.  The value '1' indicates that a flare
+    # was detected by at least one method, '0' indicates that no flare was
+    # detected by any method.
     all_onoff = result.onoff(frm_name = 'all')
     
-    # get a lightcurve of when an event was detected
+    # Get the start and end times of when a flare from any detection method
+    # was detected.  Extracts the start and end times from the pandas Series
+    # of binary values defined above
     event_all_times = get_times_onoff(all_onoff)
     
-    # get a lightcurve
+    # Get the start and end times of when no flare was detected.  This is
+    # done by using the complement of the flare Series defined above.
     no_event_times = get_times_onoff(1-all_onoff)
 
-    # acquire the LYRA data
+    # Acquire the LYRA data
     lyra = lightcurve.LYRALightCurve(tstart)
+    lyra.show()
 
     # subset the time-series for each event
 
