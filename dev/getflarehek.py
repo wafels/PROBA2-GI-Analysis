@@ -2,11 +2,45 @@ from sunpy.net import hek
 from sunpy.time import parse_time
 from sunpy import lightcurve
 from scipy.ndimage import label
+from sunpy.lightcurve import LightCurve
 import numpy as np
 import os
 import datetime
 import pickle
 import pandas
+
+#
+# Binary Lightcurve
+#
+class BinaryLightcurve(LightCurve):
+    """
+    Binary light curve.  Originated from a need to analyze the times of HEK
+    results, where '1' indicates an event was observed, and '0' indicates 
+    an event was not observed.
+    """
+    def __init__(self, *args, **kwargs):
+        LightCurve.__init__(self, *args, **kwargs)
+
+    def show(self,**kwargs):
+        axes = self.data.plot(subplots=True, sharex=True, **kwargs)
+        plt.show()
+
+    def times(self, invert = False):
+        """Label all the individual events in a timeline, and return the
+           start and end times """
+        if not(invert):
+            this = self.data
+        else:
+            this = 1-self.data
+
+        labeling = label(this)        
+        timeranges = []
+        for i in xrange(1, labeling[1]+1):
+            eventindices = (labeling[0] == i).nonzero()
+            timeranges.append( (this.index[ eventindices[0][0] ],
+                                this.index[ eventindices[0][-1] ]) )
+        return timeranges
+
 #
 # Should really define an HEK interrogation object which has these methods
 #
@@ -68,9 +102,10 @@ class fevent:
 
     def onoff(self, frm_name='all', tstart=None, tend=None, 
               operator = ['>=','<=','and']):
-        """Return a single pandas timeseries that indicates when all the
-        events within tstart and tend have occurred.  The duration of the
-        event is indicated by the value 1."""
+        """Return a Binary Lightcurve object.  The duration of the event is 
+        indicated with the value '1', and all other
+        values are indicated with a '0'.  This is calculated within the range
+        tstart and tend."""
         
         # Get the event start and end times
         result = self.times(frm_name=frm_name, tstart=tstart, tend=tend, 
@@ -79,11 +114,11 @@ class fevent:
         # Create the pandas time series
         index = pandas.date_range(self.tstart, self.tend, freq = 'S')
         time_series = pandas.Series(np.zeros(len(index)), index = index)
-       
+
         # Go through each result and get the start and end times
         for x in result:
             time_series[x[0]:x[1]] = 1
-        return time_series
+        return BinaryLightcurve.create(time_series)
     
     def times(self, frm_name='all', tstart=None, tend=None, 
               operator = ['>=','<=','and']):
@@ -140,21 +175,7 @@ class fevent:
                     events.append( (event_starttime, event_endtime) )
         return events
 
-def get_times_onoff(timeline):
-    """Label all the individual events in a timeline, and return the
-       start and end times """
-    labeling = label(timeline)
-    #eventindices = [(labeling[0] == i).nonzero() for i in xrange(1, labeling[1]+1)]
-    #timeranges = []
-    #for event in eventindices:
-    #    timeranges.append( (timeline.index[ event[0] ],
-    #                        timeline.index[ event[-1] ] ) )
-    timeranges = []
-    for i in xrange(1, labeling[1]+1):
-        eventindices = (labeling[0] == i).nonzero()
-        timeranges.append( (timeline.index[ eventindices[0][0] ],
-                            timeline.index[ eventindices[0][-1] ]) )
-    return timeranges
+
 
 def main():
 
@@ -172,14 +193,14 @@ def main():
     # Get the start and end times of when a flare from any detection method
     # was detected.  Extracts the start and end times from the pandas Series
     # of binary values defined above
-    event_all_times = get_times_onoff(all_onoff)
+    event_all_times = all_onoff.times()
     
     # Get the start and end times of when no flare was detected.  This is
     # done by using the complement of the flare Series defined above.
-    no_event_times = get_times_onoff(1-all_onoff)
+    no_event_times = all_onoff.times(invert = True)
 
     # Acquire the LYRA data
-    lyra = lightcurve.LYRALightCurve(tstart)
+    lyra = lightcurve.LYRALightCurve.create(tstart)
     lyra.show()
 
     # subset the time-series for each event
