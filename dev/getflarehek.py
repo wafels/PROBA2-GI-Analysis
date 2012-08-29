@@ -11,12 +11,13 @@ import pickle
 import pandas
 
 #
-# Binary Lightcurve
 #
-class BinaryLightcurve(LightCurve):
+# Logical Lightcurve
+#
+class LogicalLightcurve(LightCurve):
     """
-    Binary light curve.  Originated from a need to analyze the times of HEK
-    results, where '1' indicates an event was observed, and '0' indicates 
+    Logical light curve.  Originated from a need to analyze the times of HEK
+    results, where 'True' indicates an event was observed, and 'False' indicates 
     an event was not observed.
     """
     def __init__(self, *args, **kwargs):
@@ -24,7 +25,7 @@ class BinaryLightcurve(LightCurve):
         
     def complement(self):
         """ Define the complement of the passed lightcurve """
-        return BinaryLightcurve.create(1-self.data)
+        return LogicalLightcurve.create(np.invert(self.data))
 
     def show(self,**kwargs):
         axes = self.data.plot(subplots=True, sharex=True, **kwargs)
@@ -100,13 +101,20 @@ class fevent:
             self.result = client.query(hek.attrs.Time(self.tstart,self.tend), 
                                   hek.attrs.EventType(self.event_type))
             pickle.dump(self.result, open( self.filepath, "wb" ))
+            
+    def count(self, frm_name='combine', tstart=None, tend=None):
+        """Since the same event can be counted by many different algorithms, it
+        is interesting to count the number of detections as a function of
+        time in a given time range"""
+        pass
 
-    def onoff(self, frm_name='all', tstart=None, tend=None, 
+
+    def onoff(self, frm_name='combine', tstart=None, tend=None, 
               operator = ['>=','<=','and']):
-        """Return a Binary Lightcurve object.  The duration of the event is 
-        indicated with the value '1', and all other
-        values are indicated with a '0'.  This is calculated within the range
-        tstart and tend."""
+        """Return a Logical lightcurve object.  The duration of the event is 
+        indicated with the value 'True', and all other values are indicated 
+        with a 'False'.  This is calculated within the range tstart and tend.
+        """
         
         # Get the event start and end times
         result = self.times(frm_name=frm_name, tstart=tstart, tend=tend, 
@@ -114,14 +122,15 @@ class fevent:
 
         # Create the pandas time series
         index = pandas.date_range(self.tstart, self.tend, freq = 'S')
-        time_series = pandas.Series(np.zeros(len(index)), index = index)
+        time_series = pandas.Series(np.zeros(len(index)), dtype=bool,
+                                    index = index)
 
         # Go through each result and get the start and end times
         for x in result:
-            time_series[x[0]:x[1]] = 1
-        return BinaryLightcurve.create(time_series)
+            time_series[x[0]:x[1]] = True
+        return LogicalLightcurve.create(time_series)
     
-    def times(self, frm_name='all', tstart=None, tend=None, 
+    def times(self, frm_name='combine', tstart=None, tend=None, 
               operator = ['>=','<=','and']):
         """Return a list of start and end times within the requested time range
         with the correct logic on the event time comparison"""
@@ -141,7 +150,7 @@ class fevent:
 
         # Get and check the unique feature recognition methods
         frms = list( set( [ x['frm_name'] for x in self.result ] ) )
-        if not(frm_name in frms) and frm_name != 'all':
+        if not(frm_name in frms) and frm_name != 'combine':
             print('frm_name not recognised')
             return None
         
@@ -185,15 +194,15 @@ def main():
     # Acquire the HEK data
     result = fevent(tstart, directory='~/Data/HEK/', verbose=True)
     
-    # Get a pandas Series of binary values indicating when an event was 
-    # detected by any detection method.  The value '1' indicates that a flare
-    # was detected by at least one method, '0' indicates that no flare was
+    # Get a pandas Series of logical values indicating when an event was 
+    # detected by any detection method.  True indicates that a flare
+    # was detected by at least one method, False indicates that no flare was
     # detected by any method.
     all_onoff = result.onoff(frm_name = 'all')
     
     # Get the start and end times of when a flare from any detection method
     # was detected.  Extracts the start and end times from the pandas Series
-    # of binary values defined above
+    # of logical values defined above
     event_all_times = all_onoff.times()
     
     # Get the start and end times of when no flare was detected.  This is
