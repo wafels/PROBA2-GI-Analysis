@@ -3,6 +3,7 @@ from sunpy.time import parse_time
 from sunpy import lightcurve
 from scipy.ndimage import label
 from sunpy.lightcurve import LightCurve
+from matplotlib import pyplot as plt
 import numpy as np
 import os
 import datetime
@@ -20,25 +21,25 @@ class BinaryLightcurve(LightCurve):
     """
     def __init__(self, *args, **kwargs):
         LightCurve.__init__(self, *args, **kwargs)
+        
+    def complement(self):
+        """ Define the complement of the passed lightcurve """
+        return BinaryLightcurve.create(1-self.data)
 
     def show(self,**kwargs):
         axes = self.data.plot(subplots=True, sharex=True, **kwargs)
         plt.show()
 
-    def times(self, invert = False):
+    def times(self):
         """Label all the individual events in a timeline, and return the
            start and end times """
-        if not(invert):
-            this = self.data
-        else:
-            this = 1-self.data
 
-        labeling = label(this)        
+        labeling = label(self.data)        
         timeranges = []
         for i in xrange(1, labeling[1]+1):
             eventindices = (labeling[0] == i).nonzero()
-            timeranges.append( (this.index[ eventindices[0][0] ],
-                                this.index[ eventindices[0][-1] ]) )
+            timeranges.append( (self.data.index[ eventindices[0][0] ],
+                                self.data.index[ eventindices[0][-1] ]) )
         return timeranges
 
 #
@@ -197,7 +198,7 @@ def main():
     
     # Get the start and end times of when no flare was detected.  This is
     # done by using the complement of the flare Series defined above.
-    no_event_times = all_onoff.times(invert = True)
+    no_event_times = all_onoff.complement().times()
 
     # Acquire the LYRA data
     lyra = lightcurve.LYRALightCurve.create(tstart)
