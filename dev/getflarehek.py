@@ -1,8 +1,8 @@
 from sunpy.net import hek
 from sunpy.time import parse_time
-from sunpy import lightcurve
 from scipy.ndimage import label
 from sunpy.lightcurve import LightCurve
+from sunpy import lightcurve
 from matplotlib import pyplot as plt
 import numpy as np
 import os
@@ -23,13 +23,17 @@ class LogicalLightcurve(LightCurve):
     def __init__(self, *args, **kwargs):
         LightCurve.__init__(self, *args, **kwargs)
         
+    def show(self, **kwargs):
+        """Shows a plot of the light curve"""
+        fig = self.plot(**kwargs)
+        x1,x2,y1,y2 = fig.axis()
+        fig.axis((x1,x2,0,2))
+        fig.show()
+        
+        return fig        
     def complement(self):
         """ Define the complement of the passed lightcurve """
         return LogicalLightcurve.create(np.invert(self.data))
-
-    def show(self,**kwargs):
-        axes = self.data.plot(subplots=True, sharex=True, **kwargs)
-        plt.show()
 
     def times(self):
         """Label all the individual events in a timeline, and return the
@@ -181,7 +185,7 @@ class fevent:
             if eval('lo_logic ' + operator[2] + ' hi_logic'):
                 if x['frm_name'] == frm_name:
                     events.append( (event_starttime, event_endtime) )
-                elif frm_name == 'all':
+                elif frm_name == 'combine':
                     events.append( (event_starttime, event_endtime) )
         return events
 
@@ -193,12 +197,13 @@ def main():
 
     # Acquire the HEK data
     result = fevent(tstart, directory='~/Data/HEK/', verbose=True)
-    
+
     # Get a pandas Series of logical values indicating when an event was 
     # detected by any detection method.  True indicates that a flare
     # was detected by at least one method, False indicates that no flare was
     # detected by any method.
-    all_onoff = result.onoff(frm_name = 'all')
+    all_onoff = result.onoff(frm_name = 'combine')
+    all_onoff.show()
     
     # Get the start and end times of when a flare from any detection method
     # was detected.  Extracts the start and end times from the pandas Series
@@ -210,12 +215,12 @@ def main():
     no_event_times = all_onoff.complement().times()
 
     # Acquire the LYRA data
-    lyra = lightcurve.LYRALightCurve.create(tstart)
-    lyra.show()
+    #lyra = lightcurve.LYRALightCurve.create(tstart)
+    #lyra.show()
 
     # subset the time-series for each event
 
-    return None
+    return all_onoff
 
 if __name__ == '__main__':
     main()
