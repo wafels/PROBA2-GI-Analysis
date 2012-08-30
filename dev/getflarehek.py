@@ -26,14 +26,13 @@ class LogicalLightcurve(LightCurve):
     def show(self, **kwargs):
         """Shows a plot of the light curve"""
         fig = self.plot(**kwargs)
-        x1,x2,y1,y2 = fig.axis()
-        fig.axis((x1,x2,0,2))
         fig.show()
         
         return fig        
     def complement(self):
         """ Define the complement of the passed lightcurve """
-        return LogicalLightcurve.create(np.invert(self.data))
+        return LogicalLightcurve.create(np.invert(self.data),
+                                        header = self.header)
 
     def times(self):
         """Label all the individual events in a timeline, and return the
@@ -132,7 +131,9 @@ class fevent:
         # Go through each result and get the start and end times
         for x in result:
             time_series[x[0]:x[1]] = True
-        return LogicalLightcurve.create(time_series)
+        return LogicalLightcurve.create(time_series,
+                                        header = {"event_type":self.event_type,
+                                                  "frm_name":frm_name})
     
     def times(self, frm_name='combine', tstart=None, tend=None, 
               operator = ['>=','<=','and']):
