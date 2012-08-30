@@ -28,7 +28,8 @@ class LogicalLightcurve(LightCurve):
         fig = self.plot(**kwargs)
         fig.show()
         
-        return fig        
+        return fig
+
     def complement(self):
         """ Define the complement of the passed lightcurve """
         return LogicalLightcurve.create(np.invert(self.data),
