@@ -9,6 +9,8 @@ import os
 import datetime
 import pickle
 import pandas
+from rpy2.robjects.packages import importr
+import rpy2.robjects as robjects
 
 #
 #
@@ -217,8 +219,21 @@ def main():
     no_event_times = all_onoff.complement().times()
 
     # Acquire the LYRA data
-    #lyra = lightcurve.LYRALightCurve.create(tstart)
+    lyra = lightcurve.LYRALightCurve.create(tstart)
     #lyra.show()
+    
+    r = robjects.r
+    fArma = importr("fArma")
+
+    randn = np.random.randn
+
+    xx = robjects.vectors.FloatVector( np.array( lyra.data["CHANNEL4"][no_event_times[0][0]:no_event_times[0][1]] ) )
+
+    output = r.aggvarFit(xx, levels = 50, minnpts = 3)
+    print('Hurst exponent from aggvarFit')
+    print(output.do_slot("hurst")[0])
+    print('Standard error from aggvarFit')
+    print(output.do_slot("hurst")[2][1][1])
 
     # subset the time-series for each event
 
