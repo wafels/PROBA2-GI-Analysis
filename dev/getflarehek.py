@@ -193,6 +193,25 @@ class fevent:
                     events.append( (event_starttime, event_endtime) )
         return events
 
+def hurst_fArma(data, method =['aggvarFit'], levels = 10, minnpts = 3,
+                cutoff=10**np.array([0.7,2.5]) ):
+    """ Calculate the Hurst exponent using the fArma code of R, accessed
+        via rpy2"""
+
+    fArma_methods = ['aggvarFit','diffvarFit', 'absvalFit', 'higuchiFit',
+                    'pengFit', 'rsFit', 'perFit', 'boxperFit', 'whittleFit']
+
+    answer = {}
+    for m in method:
+        if m in fArma_methods:
+            if m == 'aggvarFit':
+                output = robjects.r.aggvarFit(robjects.vectors.FloatVector(data),
+                                              cutoff=robjects.vectors.FloatVector(cutoff),
+                                              levels=levels,
+                                              minnpts=minnpts)
+            
+            answer[m] = output
+    return answer
 
 
 def main():
@@ -207,7 +226,6 @@ def main():
     # was detected by at least one method, False indicates that no flare was
     # detected by any method.
     all_onoff = result.onoff(frm_name = 'combine')
-    all_onoff.show()
     
     # Get the start and end times of when a flare from any detection method
     # was detected.  Extracts the start and end times from the pandas Series
@@ -225,11 +243,11 @@ def main():
     r = robjects.r
     fArma = importr("fArma")
 
-    randn = np.random.randn
-
     xx = robjects.vectors.FloatVector( np.array( lyra.data["CHANNEL4"][no_event_times[0][0]:no_event_times[0][1]] ) )
 
-    output = r.aggvarFit(xx, levels = 50, minnpts = 3)
+    c = robjects.vectors.FloatVector( 10**np.array([0.7,2.0]) )
+
+    output = r.aggvarFit(xx, levels = 50, minnpts = 3, cut_off = c)
     print('Hurst exponent from aggvarFit')
     print(output.do_slot("hurst")[0])
     print('Standard error from aggvarFit')
