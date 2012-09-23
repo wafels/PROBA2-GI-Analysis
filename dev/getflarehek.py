@@ -193,24 +193,39 @@ class fevent:
                     events.append( (event_starttime, event_endtime) )
         return events
 
-def hurst_fArma(data, method =['aggvarFit'], levels = 10, minnpts = 3,
-                cutoff=10**np.array([0.7,2.5]) ):
+def hurst_fArma(data, function =['aggvarFit'], levels = 10, minnpts = 3,
+                cut_off=10**np.array([0.7,2.5]) ):
     """ Calculate the Hurst exponent using the fArma code of R, accessed
         via rpy2"""
+    
+    fArma = importr("fArma")
 
-    fArma_methods = ['aggvarFit','diffvarFit', 'absvalFit', 'higuchiFit',
+    fArma_functions = ['aggvarFit','diffvarFit', 'absvalFit', 'higuchiFit',
                     'pengFit', 'rsFit', 'perFit', 'boxperFit', 'whittleFit']
 
     answer = {}
-    for m in method:
-        if m in fArma_methods:
-            if m == 'aggvarFit':
+    for f in function:
+        if f in fArma_functions:
+            if f == 'aggvarFit':
                 output = robjects.r.aggvarFit(robjects.vectors.FloatVector(data),
-                                              cutoff=robjects.vectors.FloatVector(cutoff),
+                                              cut_off=robjects.vectors.FloatVector(cut_off),
                                               levels=levels,
                                               minnpts=minnpts)
+            if f == 'diffvarFit':
+                output = robjects.r.diffvarFit(robjects.vectors.FloatVector(data),
+                                              cut_off=robjects.vectors.FloatVector(cut_off),
+                                              levels=levels,
+                                              minnpts=minnpts)
+                
+            """if f == 'absvalFit':
+            if f == 'higuchiFit':
+            if f == 'pengFit':
+            if f == 'rsFit':
+            if f == 'perFit':
+            if f == 'boxperFit':
+            if f == 'whittleFit':"""
             
-            answer[m] = output
+            answer[f] = output
     return answer
 
 
@@ -239,19 +254,21 @@ def main():
     # Acquire the LYRA data
     lyra = lightcurve.LYRALightCurve.create(tstart)
     #lyra.show()
+
+    x = np.array( lyra.data["CHANNEL4"][no_event_times[1][0]:no_event_times[1][1]] )
+
+    x = np.array( lyra.data["CHANNEL4"][event_all_times[0][0]:event_all_times[0][1]] )
+   
+    function = ['aggvarFit','diffvarFit']
     
-    r = robjects.r
-    fArma = importr("fArma")
-
-    xx = robjects.vectors.FloatVector( np.array( lyra.data["CHANNEL4"][no_event_times[0][0]:no_event_times[0][1]] ) )
-
-    c = robjects.vectors.FloatVector( 10**np.array([0.7,2.0]) )
-
-    output = r.aggvarFit(xx, levels = 50, minnpts = 3, cut_off = c)
-    print('Hurst exponent from aggvarFit')
-    print(output.do_slot("hurst")[0])
-    print('Standard error from aggvarFit')
-    print(output.do_slot("hurst")[2][1][1])
+    answer = hurst_fArma(x, function=function )
+    for f in function:
+        output = answer[f]
+        print('Hurst exponent from '+f)
+        print(output.do_slot("hurst")[0])
+        print('Standard error from '+f)
+        print(output.do_slot("hurst")[2][1][1])
+        
 
     # subset the time-series for each event
 
