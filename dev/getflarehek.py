@@ -1,5 +1,6 @@
 from sunpy.net import hek
 from sunpy.time import parse_time
+from sunpy.time.timerange import TimeRange
 from scipy.ndimage import label
 from sunpy.lightcurve import LightCurve
 from sunpy import lightcurve
@@ -39,14 +40,14 @@ class LogicalLightcurve(LightCurve):
 
     def times(self):
         """Label all the individual events in a timeline, and return the
-           start and end times """
+           start and end times using the TimeRange object"""
 
         labeling = label(self.data)        
         timeranges = []
         for i in xrange(1, labeling[1]+1):
             eventindices = (labeling[0] == i).nonzero()
-            timeranges.append( (self.data.index[ eventindices[0][0] ],
-                                self.data.index[ eventindices[0][-1] ]) )
+            timeranges.append( TimeRange(self.data.index[ eventindices[0][0] ],
+                                         self.data.index[ eventindices[0][-1] ]) )
         return timeranges
 
 #
@@ -123,8 +124,7 @@ class fevent:
         """
         
         # Get the event start and end times
-        result = self.times(frm_name=frm_name, tstart=tstart, tend=tend, 
-                            operator=operator)
+        result = self.times(frm_name=frm_name, tstart=tstart, tend=tend, operator=operator)
 
         # Create the pandas time series
         index = pandas.date_range(self.tstart, self.tend, freq = 'S')
@@ -132,8 +132,8 @@ class fevent:
                                     index = index)
 
         # Go through each result and get the start and end times
-        for x in result:
-            time_series[x[0]:x[1]] = True
+        for timerange in result:
+            time_series[timerange.start():timerange.end()] = True
         return LogicalLightcurve.create(time_series,
                                         header = {"event_type":self.event_type,
                                                   "frm_name":frm_name})
@@ -188,9 +188,9 @@ class fevent:
             
             if eval('lo_logic ' + operator[2] + ' hi_logic'):
                 if x['frm_name'] == frm_name:
-                    events.append( (event_starttime, event_endtime) )
+                    events.append( TimeRange(event_starttime, event_endtime) )
                 elif frm_name == 'combine':
-                    events.append( (event_starttime, event_endtime) )
+                    events.append( TimeRange(event_starttime, event_endtime) )
         return events
 
 def hurst_fArma(data, function =['aggvarFit'], levels = 10, minnpts = 3,
@@ -255,10 +255,8 @@ def main():
     lyra = lightcurve.LYRALightCurve.create(tstart)
     #lyra.show()
 
-    x = np.array( lyra.data["CHANNEL4"][no_event_times[1][0]:no_event_times[1][1]] )
-
-    x = np.array( lyra.data["CHANNEL4"][event_all_times[0][0]:event_all_times[0][1]] )
-   
+    x = np.array( lyra.data["CHANNEL4"][no_event_times[0].start():no_event_times[0].end()] )
+  
     function = ['aggvarFit','diffvarFit']
     
     answer = hurst_fArma(x, function=function )
