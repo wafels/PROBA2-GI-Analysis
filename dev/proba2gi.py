@@ -160,8 +160,10 @@ class fevent:
 # Define a function which interfaces with the R-based Hurst calculators of
 # the package 'R'
 #
-def hurst_fArma(data, function =['aggvarFit'], levels = 10, minnpts = 3,
-                cut_off=10**np.array([0.7,2.5]) ):
+def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
+                cut_off=10**np.array([0.7,2.5]),
+                method=None, length=None, nbox=None, order=None,
+                subseries=None ):
     """ Calculate the Hurst exponent using the fArma code of R, accessed
         via rpy2"""
     
@@ -173,25 +175,81 @@ def hurst_fArma(data, function =['aggvarFit'], levels = 10, minnpts = 3,
     answer = {}
     for f in function:
         if f in fArma_functions:
+            Rdata = robjects.vectors.FloatVector(data)
+            Rcut_off = robjects.vectors.FloatVector(cut_off)
             if f == 'aggvarFit':
-                output = robjects.r.aggvarFit(robjects.vectors.FloatVector(data),
-                                              cut_off=robjects.vectors.FloatVector(cut_off),
+                output = robjects.r.aggvarFit(Rdata, 
+                                              cut_off=Rcut_off, 
                                               levels=levels,
                                               minnpts=minnpts)
             if f == 'diffvarFit':
-                output = robjects.r.diffvarFit(robjects.vectors.FloatVector(data),
-                                              cut_off=robjects.vectors.FloatVector(cut_off),
+                output = robjects.r.diffvarFit(Rdata,
+                                              cut_off=Rcut_off,
                                               levels=levels,
                                               minnpts=minnpts)
                 
-            """if f == 'absvalFit':
+            if f == 'absvalFit':
+                output = robjects.r.diffvarFit(Rdata,
+                                              cut_off=Rcut_off,
+                                              levels=levels,
+                                              minnpts=minnpts)
+                
             if f == 'higuchiFit':
+                output = robjects.r.diffvarFit(Rdata,
+                                              cut_off=Rcut_off,
+                                              levels=levels,
+                                              minnpts=minnpts)
             if f == 'pengFit':
+                if method is None:
+                    method = 'mean'
+                output = robjects.r.pengFit(Rdata, 
+                                            cut_off=Rcut_off,
+                                            levels=levels,
+                                            minnpts=minnpts,
+                                            method=method)
             if f == 'rsFit':
+                output = robjects.r.diffvarFit(Rdata,
+                                              cut_off=Rcut_off,
+                                              levels=levels,
+                                              minnpts=minnpts)
             if f == 'perFit':
+                if method is None:
+                    method = 'per'
+                output = robjects.r.perFit(Rdata,
+                                           cut_off=Rcut_off,
+                                           method=method)
             if f == 'boxperFit':
-            if f == 'whittleFit':"""
-            
+                if nbox is None:
+                    nbox=1
+                Rnbox=
+                output = robjects.r.boxperFit(Rdata,
+                                              nbox=Rnbox,
+                                              cutoff=Rcut_off)
+            if f == 'whittleFit':
+                if order is None:
+                    order=np.array([1.0,1.0])
+                Rorder = robjects.vectors.FloatVector(order)
+                    
+                if subseries is None:
+                    subseries = 1
+                if method is None:
+                    method='fgn'
+                output = robjects.r.whittleFit(Rdata,
+                                               order=Rorder,
+                                               subseries=subseries,
+                                               method=method)
+
+            if f == 'waveletFit':
+                if order is None:
+                    order=2
+                Rorder=an R number
+                if octave is None:
+                    octave=np.array([2,8])
+                Roctave=robjects.vectors.FloatVector(octave)
+                
+                output = robjects.r.waveletFit(Rdata,
+                                               order=Rorder,
+                                               octave=Roctave)
             answer[f] = output
     return answer
 
