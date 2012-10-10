@@ -28,24 +28,40 @@ def main():
 
     # Acquire the LYRA data
     lyra = LYRALightCurve.create(tstart)
-    #lyra.show()
+    # Get the section of data we want
+    ts = lyra.data["CHANNEL4"][no_event_times[0].start():no_event_times[0].end()]
 
-    x = np.array( lyra.data["CHANNEL4"][no_event_times[0].start():no_event_times[0].end()] )
-  
-    function = ['aggvarFit','diffvarFit']
+    # Look for spikes in the time series
+    spike_times = proba2gi.findspike(ts)
+
+    # Split the time series into sections; each section does not contain a spike
+    despiked = proba2gi.splitts(ts,spike_times)
     
-    answer = proba2gi.hurst_fArma(x, function=function )
-    for f in function:
-        output = answer[f]
-        print('Hurst exponent from '+f)
-        print(output.do_slot("hurst")[0])
-        print('Standard error from '+f)
-        print(output.do_slot("hurst")[2][1][1])
+    # choose which analysis method to use
+    function = ['aggvarFit','diffvarFit']
+
+    # Keep the results
+    results = []
+
+    # Perform the analysis
+    for newts in despiked:
+    
+        hurst = proba2gi.hurst_fArma( np.array(newts), 
+                                       function=function, 
+                                       levels=10 )
+        results.append(hurst)
+
+        for f in function:
+            output = hurst[f]
+            print('Hurst exponent from '+f)
+            print(output.do_slot("hurst")[0])
+            print('Standard error from '+f)
+            print(output.do_slot("hurst")[2][1][1])
         
 
     # subset the time-series for each event
 
-    return all_onoff
+    return results
 
 if __name__ == '__main__':
     main()

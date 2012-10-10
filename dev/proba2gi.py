@@ -155,7 +155,11 @@ class fevent:
                 elif frm_name == 'combine':
                     events.append( TimeRange(event_starttime, event_endtime) )
         return events
-
+#
+# Small routine to convert a python string to a R-object string
+#
+def ps2rs(x):
+    return robjects.r("'"+x+"'")
 #
 # Define a function which interfaces with the R-based Hurst calculators of
 # the package 'R'
@@ -163,7 +167,7 @@ class fevent:
 def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
                 cut_off=10**np.array([0.7,2.5]),
                 method=None, length=None, nbox=None, order=None,
-                subseries=None ):
+                subseries=None, octave=None ):
     """ Calculate the Hurst exponent using the fArma code of R, accessed
         via rpy2"""
     
@@ -178,7 +182,7 @@ def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
             Rdata = robjects.vectors.FloatVector(data)
             Rcut_off = robjects.vectors.FloatVector(cut_off)
             if f == 'aggvarFit':
-                output = robjects.r.aggvarFit(Rdata, 
+                output = robjects.r.aggvarFit(Rdata,
                                               cut_off=Rcut_off, 
                                               levels=levels,
                                               minnpts=minnpts)
@@ -202,11 +206,12 @@ def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
             if f == 'pengFit':
                 if method is None:
                     method = 'mean'
+                Rmethod = ps2rs(method)
                 output = robjects.r.pengFit(Rdata, 
                                             cut_off=Rcut_off,
                                             levels=levels,
                                             minnpts=minnpts,
-                                            method=method)
+                                            method=Rmethod)
             if f == 'rsFit':
                 output = robjects.r.diffvarFit(Rdata,
                                               cut_off=Rcut_off,
@@ -215,13 +220,14 @@ def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
             if f == 'perFit':
                 if method is None:
                     method = 'per'
+                Rmethod = ps2rs(method)
                 output = robjects.r.perFit(Rdata,
                                            cut_off=Rcut_off,
-                                           method=method)
+                                           method=Rmethod)
             if f == 'boxperFit':
                 if nbox is None:
                     nbox=1
-                Rnbox=
+                Rnbox=robjects.r(nbox)
                 output = robjects.r.boxperFit(Rdata,
                                               nbox=Rnbox,
                                               cutoff=Rcut_off)
@@ -232,17 +238,20 @@ def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
                     
                 if subseries is None:
                     subseries = 1
+                Rsubseries = robjects.r(subseries)
+
                 if method is None:
                     method='fgn'
+                Rmethod = ps2rs(method)
+                
                 output = robjects.r.whittleFit(Rdata,
                                                order=Rorder,
-                                               subseries=subseries,
+                                               subseries=Rsubseries,
                                                method=method)
 
             if f == 'waveletFit':
                 if order is None:
                     order=2
-                Rorder=an R number
                 if octave is None:
                     octave=np.array([2,8])
                 Roctave=robjects.vectors.FloatVector(octave)
@@ -253,3 +262,48 @@ def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
             answer[f] = output
     return answer
 
+def findspike(ts, binsize='12s', factor=3.0,
+              exclusion_timescale=datetime.timedelta(minutes=1)):
+    """Find a spike in the data and return its approximate start and end time"""
+
+    # Resample in bins of a given size
+    tss = ts.resample(binsize, how='mean')
+    
+    # Rescale to the standard deviation
+    rescaled = abs((tss-tss.mean())/tss.std())
+    
+    # Find the times where the rescaled time-series is big.
+    spike_times = (LogicalLightCurve(rescaled>factor)).times()
+    
+    adjusted = [TimeRange(tr.start()-exclusion_timescale,
+                          tr.end()+exclusion_timescale) for tr in spike_times]
+
+    return adjusted
+
+
+def excludetimerange(ts,timerange):
+    """Split the input timeseries into two smaller sub time-series that exclude 
+    the time range"""
+    return [ts[:timerange.start()],ts[timerange.end():]]
+
+def splitts(ts,timeranges):
+    """Split the input timeseries into as many smaller sub-time-series as
+    required"""
+    split =[]
+    tsremainder = ts
+    # Sort the input timeranges
+    sorted = np.argsort([tr.start() for tr in timeranges])
+    # Go through the sorted time ranges
+    for i in range(0,len(sorted)):
+        timerange = timeranges[i]
+        ts_bits = excludetimerange(tsremainder,timerange)
+        split.append(ts_bits[0])
+        tsremainder = ts_bits[1]
+    # Remember to keep the last bit.
+    split.append(tsremainder)
+
+    return split
+
+def dowavelet(ts):
+    """Peform a wavelet analysis of the time series to look for oscillations"""
+    pass
