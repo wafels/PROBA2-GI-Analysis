@@ -275,6 +275,8 @@ def findspike(ts, binsize='12s', factor=3.0,
     # Find the times where the rescaled time-series is big.
     spike_times = (LogicalLightCurve(rescaled>factor)).times()
     
+    # Extend the times a little bit to make sure we definitely exclude the
+    # spike
     adjusted = [TimeRange(tr.start()-exclusion_timescale,
                           tr.end()+exclusion_timescale) for tr in spike_times]
 
@@ -289,6 +291,11 @@ def excludetimerange(ts,timerange):
 def splitts(ts,timeranges):
     """Split the input timeseries into as many smaller sub-time-series as
     required"""
+
+    # If no timerange is passed in, just return the time series
+    if timeranges is None:
+        return [ts]
+
     split =[]
     tsremainder = ts
     # Sort the input timeranges
