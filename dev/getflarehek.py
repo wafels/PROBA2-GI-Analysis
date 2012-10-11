@@ -30,35 +30,35 @@ def main():
 
     # Acquire the LYRA data
     lyra = LYRALightCurve.create(tstart)
-    # Get the section of data we want
     
-    result = []
-    for tr in no_event_times:
-        ts = lyra.data["CHANNEL4"][tr.start():tr.end()]
-        
-        # Look for spikes in the time series
-        spike_times = proba2gi.find_spike(ts)
+    analysis_results = []
 
-        # Split the time series into sections; each section does not contain a spike
-        despiked = proba2gi.split_timeseries(ts,spike_times,
-                                             label_last='just_before_flare',
-                                             label_first='just_after_flare')
+    # Go through each time range and perform the Hurst analyses
+    for i,tr in enumerate(no_event_times):
+        lc = lyra.truncate(tr).extract('CHANNEL4')
+        
+        # Look for spikes in the time series: uses time-series, not lightcurves
+        spike_times = proba2gi.find_spike(lc.data)
+
+        # Split the time series into sections; each section does not contain 
+        # a spike.  Uses time-series, not lightcurves
+        despiked = proba2gi.split_timeseries(lc.data,spike_times)
     
         # choose which analysis method to use
         function = ['aggvarFit','diffvarFit']
 
         # Perform the analyses
-        analysis_results = []
-        for newts in despiked:
+        hurst_results = []
+        for j,newlc in enumerate(despiked):
             # Analysis 1
             # Calculate the Hurst exponent for the time series
             
             # resample the data to remove the effects of instrumental noise
-            # resampled = newts.resample('1s',how='mean',)
-            resampled = newts
+            # resampled = newlc.resample('1s',how='mean',)
+            resampled = newlc
         
             # Hurst analysis 1
-            hurst1_results = proba2gi.hurst_fArma(resampled, 
+            hurst1_results = proba2gi.hurst_fArma(resampled.data, 
                                          function=function, 
                                          levels=10 )
             # Analysis 2
@@ -77,24 +77,30 @@ def main():
             advance = duration/2
             
             # Start the loop 
-            extent = TimeRange(resampled.start_time,
-                               resampled.start_time + duration)
-            while extent.t2 <= resampled.end_time:
+            extent = TimeRange(resampled.data.index[0],
+                               resampled.data.index[0] + duration)
+            while extent.end() <= resampled.end_time:
 
-                hurst2 = proba2gi.hurst_fArma(resampled[extent.t1,extent.t2], 
+                hurst2 = proba2gi.hurst_fArma(resampled[extent.start(),extent.end()], 
                                               function=function, 
                                               levels=10 )
         
                 # Store the analyzed time-series and its Hurst analysis
-                hurst2_results.append( {"t1":extent.t1,
-                                        "t2":extent.t2,
+                hurst2_results.append( {"extent":extent,
                                         "hurst2":hurst2} )
                 extent.extend(advance,advance)
 
-            # Store all the results
-            analysis_results.append({"ts":resampled,
-                                     "hurst1":hurst1_results,
-                                     "hurst2":hurst2_results})
+            # Store all the results.  index = 0 indicates the first
+            # time-series after the flare.  The largest number indicates
+            # the last time-series before the flare
+            hurst_results.append({"index":j,
+                                  "ts":resampled,
+                                  "hurst1":hurst1_results,
+                                  "hurst2":hurst2_results})
+        
+        analysis_results.append({"index":i,
+                                 "lyra":lyra,
+                                 "hurst_results":hurst_results})
 
         #for f in function:
         #    output = hurst[f]
@@ -103,12 +109,7 @@ def main():
         #        print(output.do_slot("hurst")[0])
         #        print('Standard error from '+f)
         #        print(output.do_slot("hurst")[2][1][1])
-        
 
-    # subset the time-series for each event
-
-        result.append(do_hurst(ts))
- 
 
 if __name__ == '__main__':
     main()

@@ -4,6 +4,7 @@ from sunpy.net import hek
 from sunpy.time import parse_time
 from sunpy.time.timerange import TimeRange
 from sunpy.lightcurve import LogicalLightCurve
+from sunpy.lightcurve import LightCurve
 from matplotlib import pyplot as plt
 import numpy as np
 import os
@@ -12,7 +13,6 @@ import pickle
 import pandas
 from rpy2.robjects.packages import importr
 import rpy2.robjects as robjects
-
 
 #
 # Should really define an HEK interrogation object which has these methods
