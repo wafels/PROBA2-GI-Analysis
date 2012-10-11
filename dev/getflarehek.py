@@ -31,7 +31,8 @@ def main():
     # Acquire the LYRA data
     lyra = LYRALightCurve.create(tstart)
     
-    analysis_results = []
+    
+    hurst_results = []
 
     # Go through each time range and perform the Hurst analyses
     for i,tr in enumerate(no_event_times):
@@ -48,7 +49,6 @@ def main():
         function = ['aggvarFit','diffvarFit']
 
         # Perform the analyses
-        hurst_results = []
         for j,newlc in enumerate(despiked):
             # Analysis 1
             # Calculate the Hurst exponent for the time series
@@ -58,7 +58,7 @@ def main():
             resampled = newlc
         
             # Hurst analysis 1
-            hurst1_results = proba2gi.hurst_fArma(resampled.data, 
+            hurst1_results = proba2gi.hurst_fArma(resampled, 
                                          function=function, 
                                          levels=10 )
             # Analysis 2
@@ -67,40 +67,32 @@ def main():
             # exponent of time-series as a function of time.  For example, does
             # the Hurst exponent change noticably and consistently before
             # flares?
-            hurst2_results = []
-            
-            # Pick the duration of the sub-time series
-            duration = timedelta(seconds=10)
-            
-            # Pick how far to jump forward in time for the next sub time-series
-            # Can use this to overlap with the previous time-series
-            advance = duration/2
-            
-            # Start the loop 
-            extent = TimeRange(resampled.data.index[0],
-                               resampled.data.index[0] + duration)
-            while extent.end() <= resampled.end_time:
-
-                hurst2 = proba2gi.hurst_fArma(resampled[extent.start(),extent.end()], 
-                                              function=function, 
-                                              levels=10 )
-        
-                # Store the analyzed time-series and its Hurst analysis
-                hurst2_results.append( {"extent":extent,
-                                        "hurst2":hurst2} )
-                extent.extend(advance,advance)
+            #hurst2_results = proba2gi.hurst_analysis2(resampled,
+            #                                          duration = timedelta(seconds=10),
+            #                                          advance = timedelta(seconds=5), 
+            #                                          function=function, 
+            #                                          levels=10 )
+            hurst2_results = None
 
             # Store all the results.  index = 0 indicates the first
-            # time-series after the flare.  The largest number indicates
+            # time-series after the flare, except when we are looking at the
+            # very first segment.  The largest number indicates
             # the last time-series before the flare
-            hurst_results.append({"index":j,
+            # The index i refers to the interflare time series
+            # The index j refers to how this time series has been split up
+            # into smaller sections that avoid spikes.  If there is an
+            # interflare timeseries 'i' that has only one subindex j=0
+            # then no spikes occured in time-series 'i'.
+            # For all i >= 1, j = 0 gives the sub time-series directly after
+            # the flare, and the maximum value of 'k' for (i,k) where i is fixed
+            # gives you the time-series immediately preceding a flare.
+            # We are relying on the series returned by despike as being
+            # strinctly ordered by time.
+            hurst_results.append({"index":(i,j),
                                   "ts":resampled,
                                   "hurst1":hurst1_results,
                                   "hurst2":hurst2_results})
-        
-        analysis_results.append({"index":i,
-                                 "lyra":lyra,
-                                 "hurst_results":hurst_results})
+    return hurst_results
 
         #for f in function:
         #    output = hurst[f]

@@ -329,6 +329,26 @@ def split_timeseries(ts,timeranges, label_last=None, label_first=None):
 
     return split
 
+def hurst_analysis2(ts, duration = None, advance = None,**kwargs):
+    hurst2_results = []
+
+    # Pick the duration of the sub-time series
+    #duration = timedelta(seconds=10)
+            
+    # Pick how far to jump forward in time for the next sub time-series
+    # Can use this to overlap with the previous time-series
+    #advance = duration/2
+            
+    # Start the loop 
+    extent = TimeRange(ts.data.index[0],
+                       ts.data.index[0] + duration)
+    while extent.end() <= ts.data.index[-1]:
+        hurst2 = hurst_fArma([extent.start(),extent.end()],kwargs)
+        
+        # Store the analyzed time-series and its Hurst analysis
+        hurst2_results.append( {"extent":extent,"hurst2":hurst2} )
+        extent.extend(advance,advance)
+
 def dowavelet(ts):
     """Peform a wavelet analysis of the time series to look for oscillations"""
     pass
