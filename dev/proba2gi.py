@@ -182,15 +182,23 @@ def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
             Rdata = robjects.vectors.FloatVector(data)
             Rcut_off = robjects.vectors.FloatVector(cut_off)
             if f == 'aggvarFit':
-                output = robjects.r.aggvarFit(Rdata,
-                                              cut_off=Rcut_off, 
-                                              levels=levels,
-                                              minnpts=minnpts)
+                try:
+                    output = robjects.r.aggvarFit(Rdata,
+                                                  cut_off=Rcut_off, 
+                                                  levels=levels,
+                                                  minnpts=minnpts)
+                except:
+                    print('Algorithm failure')
+                    output=None
             if f == 'diffvarFit':
-                output = robjects.r.diffvarFit(Rdata,
-                                              cut_off=Rcut_off,
-                                              levels=levels,
-                                              minnpts=minnpts)
+                try:
+                    output = robjects.r.diffvarFit(Rdata,
+                                                   cut_off=Rcut_off,
+                                                   levels=levels,
+                                                   minnpts=minnpts)
+                except:
+                    print('Algorithm failure')
+                    output=None
                 
             if f == 'absvalFit':
                 output = robjects.r.diffvarFit(Rdata,
@@ -262,19 +270,22 @@ def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
             answer[f] = output
     return answer
 
-def findspike(ts, binsize='12s', factor=3.0,
-              exclusion_timescale=datetime.timedelta(minutes=1)):
+def find_spike(ts, binsize='12s', factor=3.0,
+              exclusion_timescale=datetime.timedelta(minutes=1),
+              method=None):
     """Find a spike in the data and return its approximate start and end time"""
 
-    # Resample in bins of a given size
-    tss = ts.resample(binsize, how='mean')
+    if method is None:
+        # Resample in bins of a given size
+        tss = ts.resample(binsize, how='mean')
     
-    # Rescale to the standard deviation
-    rescaled = abs((tss-tss.mean())/tss.std())
+        # Rescale to the standard deviation
+        rescaled = abs((tss-tss.mean())/tss.std())
     
-    # Find the times where the rescaled time-series is big.
-    spike_times = (LogicalLightCurve(rescaled>factor)).times()
-    
+        # Find the times where the rescaled time-series is big.
+        spike_times = (LogicalLightCurve(rescaled>factor)).times()
+        
+        
     # Extend the times a little bit to make sure we definitely exclude the
     # spike
     adjusted = [TimeRange(tr.start()-exclusion_timescale,
@@ -283,12 +294,12 @@ def findspike(ts, binsize='12s', factor=3.0,
     return adjusted
 
 
-def excludetimerange(ts,timerange):
+def exclude_timerange(ts,timerange):
     """Split the input timeseries into two smaller sub time-series that exclude 
     the time range"""
     return [ts[:timerange.start()],ts[timerange.end():]]
 
-def splitts(ts,timeranges):
+def split_timeseries(ts,timeranges, label_last=None, label_first=None):
     """Split the input timeseries into as many smaller sub-time-series as
     required"""
 
@@ -303,9 +314,16 @@ def splitts(ts,timeranges):
     # Go through the sorted time ranges
     for i in range(0,len(sorted)):
         timerange = timeranges[i]
-        ts_bits = excludetimerange(tsremainder,timerange)
+        ts_bits = exclude_timerange(tsremainder,timerange)
+        
+        # Label the very first time series if requested to
+        if i==0 and label_first is not None:
+            pass
         split.append(ts_bits[0])
         tsremainder = ts_bits[1]
+    # Label the very last time series if requested to
+    if label_last is not None:
+        pass
     # Remember to keep the last bit.
     split.append(tsremainder)
 
