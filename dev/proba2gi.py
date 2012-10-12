@@ -76,7 +76,12 @@ class fevent:
         """Since the same event can be counted by many different algorithms, it
         is interesting to count the number of detections as a function of
         time in a given time range"""
-        pass
+        # Create the pandas time series
+        index = pandas.date_range(self.tstart, self.tend, freq = 'S')
+        time_series = pandas.Series(np.zeros(len(index)), dtype=bool,
+                                    index = index)
+        return LightCurve(time_series,header = {"event_type":self.event_type,
+                                                  "frm_name":frm_name})
 
 
     def onoff(self, frm_name='combine', tstart=None, tend=None, 
@@ -174,7 +179,8 @@ def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
     fArma = importr("fArma")
 
     fArma_functions = ['aggvarFit','diffvarFit', 'absvalFit', 'higuchiFit',
-                    'pengFit', 'rsFit', 'perFit', 'boxperFit', 'whittleFit']
+                    'pengFit', 'rsFit', 'perFit', 'boxperFit', 'whittleFit',
+                    'waveletFit']
 
     answer = {}
     for f in function:
@@ -256,14 +262,12 @@ def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
                                                order=Rorder,
                                                subseries=Rsubseries,
                                                method=method)
-
             if f == 'waveletFit':
                 if order is None:
                     order=2
                 if octave is None:
-                    octave=np.array([2,8])
-                Roctave=robjects.vectors.FloatVector(octave)
-                
+                    octave=np.array([2.0,8.0])
+                Roctave = robjects.vectors.FloatVector(order)
                 output = robjects.r.waveletFit(Rdata,
                                                order=Rorder,
                                                octave=Roctave)
@@ -278,9 +282,9 @@ def find_spike(ts, binsize='12s', factor=3.0,
     if method is None:
         # Resample in bins of a given size
         tss = ts.resample(binsize, how='mean')
-    
+        tnew = tss - pandas.stats.moments.rolling_median(tss,10)
         # Rescale to the standard deviation
-        rescaled = abs((tss-tss.mean())/tss.std())
+        rescaled = abs((tnew-tnew.mean())/tnew.std())
     
         # Find the times where the rescaled time-series is big.
         spike_times = (LogicalLightCurve(rescaled>factor)).times()
@@ -348,6 +352,15 @@ def hurst_analysis2(ts, duration = None, advance = None,**kwargs):
         # Store the analyzed time-series and its Hurst analysis
         hurst2_results.append( {"extent":extent,"hurst2":hurst2} )
         extent.extend(advance,advance)
+
+def hek_spike_summary(lc,hek_times,spike_times):
+    lc.plot()
+    for event_time in hek_times:
+        plt.axvspan(event_time.start(), 
+                    event_time.end(), facecolor='g', alpha=0.2)
+    for spike_time in spike_times:
+        plt.axvspan(spike_time.start(), 
+                    spike_time.end(), facecolor='black', alpha=1.0)
 
 def dowavelet(ts):
     """Peform a wavelet analysis of the time series to look for oscillations"""

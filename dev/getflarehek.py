@@ -11,13 +11,13 @@ def main():
     tstart = '2011/03/05'
 
     # Acquire the HEK data
-    result = proba2gi.fevent(tstart, directory='~/Data/HEK/', verbose=True)
+    hekdata = proba2gi.fevent(tstart, directory='~/Data/HEK/', verbose=True)
 
     # Get a pandas Series of logical values indicating when an event was 
     # detected by any detection method.  True indicates that a flare
     # was detected by at least one method, False indicates that no flare was
     # detected by any method.
-    all_onoff = result.onoff(frm_name = 'combine')
+    all_onoff = hekdata.onoff(frm_name = 'combine')
     
     # Get the start and end times of when a flare from any detection method
     # was detected.  Extracts the start and end times from the pandas Series
@@ -30,23 +30,25 @@ def main():
 
     # Acquire the LYRA data
     lyra = LYRALightCurve.create(tstart)
-    
-    
-    hurst_results = []
 
-    # Go through each time range and perform the Hurst analyses
+    # Go through each time range and perform the Hurst analyses    
+    hurst_results = {"no_spike":[], "after_flare":[], "before_flare":[]}
+    all_spike_times = []
     for i,tr in enumerate(no_event_times):
         lc = lyra.truncate(tr).extract('CHANNEL4')
         
         # Look for spikes in the time series: uses time-series, not lightcurves
         spike_times = proba2gi.find_spike(lc.data)
+        if spike_times is not None:
+            for st in spike_times:
+                all_spike_times.append(st)
 
         # Split the time series into sections; each section does not contain 
         # a spike.  Uses time-series, not lightcurves
         despiked = proba2gi.split_timeseries(lc.data,spike_times)
     
         # choose which analysis method to use
-        function = ['aggvarFit','diffvarFit']
+        function = ['aggvarFit','diffvarFit','waveletFit']
 
         # Perform the analyses
         for j,newlc in enumerate(despiked):
@@ -59,8 +61,10 @@ def main():
         
             # Hurst analysis 1
             hurst1_results = proba2gi.hurst_fArma(resampled, 
-                                         function=function, 
-                                         levels=10 )
+                                                  function=function, 
+                                                  levels=10 )
+            print hurst1_results["aggvarFit"].do_slot("hurst")[0]
+            print hurst1_results["waveletFit"].do_slot("hurst")[0]
             # Analysis 2
             # Calculate the Hurst exponent in running subsections of the input
             # time series.  This is intended to look for changes in the Hurst
@@ -88,11 +92,30 @@ def main():
             # gives you the time-series immediately preceding a flare.
             # We are relying on the series returned by despike as being
             # strinctly ordered by time.
-            hurst_results.append({"index":(i,j),
-                                  "ts":resampled,
-                                  "hurst1":hurst1_results,
-                                  "hurst2":hurst2_results})
-    return hurst_results
+            
+            # If the despiked time-series has only one entry, then no spike
+            # occurred
+            compiled_results = {"ts":resampled,
+                                "hurst1":hurst1_results,
+                                "hurst2":hurst2_results}
+            if i != 0:
+                # Drop the first time-series since we don't know its status -
+                # before or after a flare???
+                
+                # This time series spans the range from after a flare to
+                # before a flare with no spike in between
+                if len(despiked) == 1:
+                    hurst_results["no_spike"].append(compiled_results)
+                
+                # Two time-series are found if one spike is found in the parent
+                # time-series.
+                if len(despiked) >= 2:
+                    if j == 0:
+                        hurst_results["after_flare"].append(compiled_results)
+                    if j == len(despiked)-1:
+                        hurst_results["before_flare"].append(compiled_results)
+
+    return hekdata, lyra, event_all_times, no_event_times, all_spike_times, hurst_results
 
         #for f in function:
         #    output = hurst[f]
@@ -101,6 +124,8 @@ def main():
         #        print(output.do_slot("hurst")[0])
         #        print('Standard error from '+f)
         #        print(output.do_slot("hurst")[2][1][1])
+def analyze_hurst1(h1):
+    pass
 
 
 if __name__ == '__main__':
