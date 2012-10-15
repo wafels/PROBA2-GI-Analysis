@@ -4,38 +4,22 @@ import proba2gi
 from sunpy.lightcurve import LYRALightCurve
 import numpy as np
 from datetime import timedelta
-from sunpy.time import TimeRange
+from sunpy.time import TimeRange, parse_time
+from matplotlib import pyplot as plt
+import pandas
 
-def main():
-
-    tstart = '2011/03/05'
-
-    # Acquire the HEK data
-    hekdata = proba2gi.fevent(tstart, directory='~/Data/HEK/', verbose=True)
-
-    # Get a pandas Series of logical values indicating when an event was 
-    # detected by any detection method.  True indicates that a flare
-    # was detected by at least one method, False indicates that no flare was
-    # detected by any method.
-    all_onoff = hekdata.onoff(frm_name = 'combine')
-    
-    # Get the start and end times of when a flare from any detection method
-    # was detected.  Extracts the start and end times from the pandas Series
-    # of logical values defined above
-    event_all_times = all_onoff.times()
-    
-    # Get the start and end times of when no flare was detected.  This is
-    # done by using the complement of the flare Series defined above.
-    no_event_times = all_onoff.complement().times()
-
-    # Acquire the LYRA data
-    lyra = LYRALightCurve.create(tstart)
+def do_hurst1_for_one_day(date, function=['aggvarFit','diffvarFit']):
+    # Acquire all the relevant data
+    gidata = proba2gi.GIData(date)
+    #event_all_times = gidata.onoff(frm_name='combine').times()
+    no_event_times = gidata.onoff(frm_name='combine').complement().times()
 
     # Go through each time range and perform the Hurst analyses    
-    hurst_results = {"no_spike":[], "after_flare":[], "before_flare":[]}
+    hurst_results = {"no_spike":[], "between_spikes":[],
+                    "after_flare":[], "before_flare":[]}
     all_spike_times = []
     for i,tr in enumerate(no_event_times):
-        lc = lyra.truncate(tr).extract('CHANNEL4')
+        lc = gidata.lyra.truncate(tr).extract('CHANNEL4')
         
         # Look for spikes in the time series: uses time-series, not lightcurves
         spike_times = proba2gi.find_spike(lc.data)
@@ -46,39 +30,18 @@ def main():
         # Split the time series into sections; each section does not contain 
         # a spike.  Uses time-series, not lightcurves
         despiked = proba2gi.split_timeseries(lc.data,spike_times)
-    
-        # choose which analysis method to use
-        function = ['aggvarFit','diffvarFit','waveletFit']
 
         # Perform the analyses
+        # Analysis 1
+        # Calculate the Hurst exponent for the time series
         for j,newlc in enumerate(despiked):
-            # Analysis 1
-            # Calculate the Hurst exponent for the time series
-            
             # resample the data to remove the effects of instrumental noise
             # resampled = newlc.resample('1s',how='mean',)
             resampled = newlc
-        
-            # Hurst analysis 1
-            hurst1_results = proba2gi.hurst_fArma(resampled, 
+            results = proba2gi.hurst_fArma(resampled, 
                                                   function=function, 
                                                   levels=10 )
-            print hurst1_results["aggvarFit"].do_slot("hurst")[0]
-            print hurst1_results["waveletFit"].do_slot("hurst")[0]
-            # Analysis 2
-            # Calculate the Hurst exponent in running subsections of the input
-            # time series.  This is intended to look for changes in the Hurst
-            # exponent of time-series as a function of time.  For example, does
-            # the Hurst exponent change noticably and consistently before
-            # flares?
-            #hurst2_results = proba2gi.hurst_analysis2(resampled,
-            #                                          duration = timedelta(seconds=10),
-            #                                          advance = timedelta(seconds=5), 
-            #                                          function=function, 
-            #                                          levels=10 )
-            hurst2_results = None
-
-            # Store all the results.  index = 0 indicates the first
+            # Store all the results.  i = 0 indicates the first
             # time-series after the flare, except when we are looking at the
             # very first segment.  The largest number indicates
             # the last time-series before the flare
@@ -92,12 +55,7 @@ def main():
             # gives you the time-series immediately preceding a flare.
             # We are relying on the series returned by despike as being
             # strinctly ordered by time.
-            
-            # If the despiked time-series has only one entry, then no spike
-            # occurred
-            compiled_results = {"ts":resampled,
-                                "hurst1":hurst1_results,
-                                "hurst2":hurst2_results}
+
             if i != 0:
                 # Drop the first time-series since we don't know its status -
                 # before or after a flare???
@@ -105,17 +63,19 @@ def main():
                 # This time series spans the range from after a flare to
                 # before a flare with no spike in between
                 if len(despiked) == 1:
-                    hurst_results["no_spike"].append(compiled_results)
+                    hurst_results["no_spike"].append(results)
                 
                 # Two time-series are found if one spike is found in the parent
                 # time-series.
                 if len(despiked) >= 2:
                     if j == 0:
-                        hurst_results["after_flare"].append(compiled_results)
+                        hurst_results["after_flare"].append(results)
+                    if j >= 1 and j <= len(despiked)-1:
+                        hurst_results["between_spikes"].append(results)
                     if j == len(despiked)-1:
-                        hurst_results["before_flare"].append(compiled_results)
+                        hurst_results["before_flare"].append(results)
 
-    return hekdata, lyra, event_all_times, no_event_times, all_spike_times, hurst_results
+    return hurst_results
 
         #for f in function:
         #    output = hurst[f]
@@ -124,9 +84,60 @@ def main():
         #        print(output.do_slot("hurst")[0])
         #        print('Standard error from '+f)
         #        print(output.do_slot("hurst")[2][1][1])
-def analyze_hurst1(h1):
-    pass
 
+
+
+
+def main():
+
+    tstart = '2011/03/01'
+    tend = '2011/03/31'
+
+    results = []
+    while tstart <= parse_time(tend):
+        results.append(do_hurst1_for_one_day)
+ 
+    # Simple analysis of pre and post flare Hurst components
+ 
+ 
+def analyze_hurst1(h1,f):
+    """Plot and analyze the pre and post flare Hurst results"""
+    style = {'before_flare':{"ecolor":'r',"marker":'s',"mfc":"r"},
+              'after_flare':{"ecolor":'g',"marker":'D',"mfc":"g"}}
+    hdf = pandas.DataFrame()
+    for x in ['before_flare','after_flare']:
+        hurst = []
+        hurst_error = []
+        time = []
+        for element in h1[x]:
+            bit = element["hurst1"][f]
+            if bit is not None:
+                hurst.append(bit.do_slot("hurst")[0][0])
+                hurst_error.append(bit.do_slot("hurst")[2][1][1])
+                time.append(element["ts"].index[0])
+        hdf[x] = pandas.Series(hurst,index=time)
+        plt.plot(time, hurst, style[x]["ecolor"]+"o", label=x)
+        plt.errorbar(time,hurst, yerr=hurst_error, fmt = None,
+                     ecolor=style[x]["ecolor"],
+                     marker=style[x]["marker"])
+        plt.axhline(1.0)
+        plt.axhline(0.5)
+        plt.legend()
 
 if __name__ == '__main__':
     main()
+
+"""
+            # Analysis 2
+            # Calculate the Hurst exponent in running subsections of the input
+            # time series.  This is intended to look for changes in the Hurst
+            # exponent of time-series as a function of time.  For example, does
+            # the Hurst exponent change noticably and consistently before
+            # flares?
+            #hurst2_results = proba2gi.hurst_analysis2(resampled,
+            #                                          duration = timedelta(seconds=10),
+            #                                          advance = timedelta(seconds=5), 
+            #                                          function=function, 
+            #                                          levels=10 )
+                hurst2_results = None
+"""

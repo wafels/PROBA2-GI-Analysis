@@ -4,6 +4,7 @@ from sunpy.net import hek
 from sunpy.time import parse_time
 from sunpy.time.timerange import TimeRange
 from sunpy.lightcurve import LogicalLightCurve
+from sunpy.lightcurve import LYRALightCurve
 from sunpy.lightcurve import LightCurve
 from matplotlib import pyplot as plt
 import numpy as np
@@ -160,6 +161,57 @@ class fevent:
                 elif frm_name == 'combine':
                     events.append( TimeRange(event_starttime, event_endtime) )
         return events
+    
+
+class GIData:
+    def __init__(self, date, directory = '~/Data/', extract='CHANNEL4'):
+        """Routine to acquire the relevant data for a particular day for the
+        PROBA2 GI"""
+        # Which date?
+        self.date = date
+        # Acquire the HEK data
+        self.hek = fevent(self.date, directory=os.path.join(directory,'HEK/'), verbose=True)
+        # Acquire the LYRA data
+        self.lyra = LYRALightCurve.create(self.date)
+        # Which channel?
+        self.extract = extract
+
+    def onoff(self, frm_name='combine'):
+        return self.hek.onoff(frm_name=frm_name)
+
+    def plot(self, extract=None, frm_name='combine'):
+        if extract is None:
+            self.lyra.plot()
+        else:
+            lc = self.lyra.extract(extract)
+            lc.plot()
+        times = self.onoff(frm_name=frm_name).times()
+        for tr in times:
+            plt.axvspan(tr.start(),tr.end(),facecolor='green', alpha=0.5)
+
+def find_spike(ts, binsize='12s', factor=3.0,
+            exclusion_timescale=datetime.timedelta(minutes=1),
+              method=None):
+    """Find a spike in the data and return its approximate start and end time"""
+
+    if method is None:
+        # Resample in bins of a given size
+        tss = ts.resample(binsize, how='mean')
+        tnew = tss - pandas.stats.moments.rolling_median(tss,10)
+        # Rescale to the standard deviation
+        rescaled = abs((tnew-tnew.mean())/tnew.std())
+    
+        # Find the times where the rescaled time-series is big.
+        spike_times = (LogicalLightCurve(rescaled>factor)).times()
+        
+        
+        # Extend the times a little bit to make sure we definitely exclude the
+        # spike
+        adjusted = [TimeRange(tr.start()-exclusion_timescale,
+                      tr.end()+exclusion_timescale) for tr in spike_times]
+
+    return adjusted
+
 #
 # Small routine to convert a python string to a R-object string
 #
@@ -273,37 +325,13 @@ def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
                                                octave=Roctave)
             answer[f] = output
     return answer
-
-def find_spike(ts, binsize='12s', factor=3.0,
-              exclusion_timescale=datetime.timedelta(minutes=1),
-              method=None):
-    """Find a spike in the data and return its approximate start and end time"""
-
-    if method is None:
-        # Resample in bins of a given size
-        tss = ts.resample(binsize, how='mean')
-        tnew = tss - pandas.stats.moments.rolling_median(tss,10)
-        # Rescale to the standard deviation
-        rescaled = abs((tnew-tnew.mean())/tnew.std())
     
-        # Find the times where the rescaled time-series is big.
-        spike_times = (LogicalLightCurve(rescaled>factor)).times()
-        
-        
-    # Extend the times a little bit to make sure we definitely exclude the
-    # spike
-    adjusted = [TimeRange(tr.start()-exclusion_timescale,
-                          tr.end()+exclusion_timescale) for tr in spike_times]
-
-    return adjusted
-
-
 def exclude_timerange(ts,timerange):
     """Split the input timeseries into two smaller sub time-series that exclude 
     the time range"""
     return [ts[:timerange.start()],ts[timerange.end():]]
 
-def split_timeseries(ts,timeranges, label_last=None, label_first=None):
+def split_timeseries(ts,timeranges):
     """Split the input timeseries into as many smaller sub-time-series as
     required"""
 
@@ -314,20 +342,13 @@ def split_timeseries(ts,timeranges, label_last=None, label_first=None):
     split =[]
     tsremainder = ts
     # Sort the input timeranges
-    sorted = np.argsort([tr.start() for tr in timeranges])
+    sorted_start_times = np.argsort([tr.start() for tr in timeranges])
     # Go through the sorted time ranges
-    for i in range(0,len(sorted)):
+    for i in range(0,len(sorted_start_times)):
         timerange = timeranges[i]
         ts_bits = exclude_timerange(tsremainder,timerange)
-        
-        # Label the very first time series if requested to
-        if i==0 and label_first is not None:
-            pass
         split.append(ts_bits[0])
         tsremainder = ts_bits[1]
-    # Label the very last time series if requested to
-    if label_last is not None:
-        pass
     # Remember to keep the last bit.
     split.append(tsremainder)
 
@@ -361,6 +382,8 @@ def hek_spike_summary(lc,hek_times,spike_times):
     for spike_time in spike_times:
         plt.axvspan(spike_time.start(), 
                     spike_time.end(), facecolor='black', alpha=1.0)
+
+
 
 def dowavelet(ts):
     """Peform a wavelet analysis of the time series to look for oscillations"""
