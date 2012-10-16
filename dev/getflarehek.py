@@ -2,11 +2,46 @@
 
 import proba2gi
 from sunpy.lightcurve import LYRALightCurve
-import numpy as np
-from datetime import timedelta
 from sunpy.time import TimeRange, parse_time
-from matplotlib import pyplot as plt
+from datetime import timedelta
 import pandas
+from matplotlib import pyplot as plt
+import numpy as np
+from scipy.stats import ks_2samp
+
+
+def main():
+
+    tstart = parse_time('2011/02/15')
+    tend = parse_time('2011/03/15')
+
+    results = []
+    while tstart <= tend:
+        results.append(do_hurst1_for_one_day(tstart))
+        tstart = tstart + timedelta(days=1)
+ 
+    # Simple analysis of pre and post flare Hurst components
+    # Unpack the results into 3 types - before flare, after flare and between
+    # spikes.  Compare the population of results using two-sided Kolmogorov-
+    # Smirnov test
+    
+        h = {"no_spike":[], "between_spikes":[], "after_flare":[], "before_flare":[]}
+        for daily_results in results:
+            for type in daily_results.keys():
+                for analysis in daily_results[type]:
+                    if analysis["aggvarFit"] is not None:
+                        h_value = analysis["aggvarFit"].do_slot("hurst")[0][0]
+                        if h_value is not None:
+                            if h_value < 1.0:
+                                h[type].append(h_value)
+
+        # Do the two-sided K-S test
+        for type1 in h.keys():
+            for type2 in h.keys():
+                kstest = ks_2samp(np.array(h[type1]),np.array(h[type2]))
+                print type1, len(h[type1]), type2, len(h[type2]), kstest
+    
+
 
 def do_hurst1_for_one_day(date, function=['aggvarFit','diffvarFit']):
     # Acquire all the relevant data
@@ -86,20 +121,6 @@ def do_hurst1_for_one_day(date, function=['aggvarFit','diffvarFit']):
         #        print(output.do_slot("hurst")[2][1][1])
 
 
-
-
-def main():
-
-    tstart = '2011/03/01'
-    tend = '2011/03/31'
-
-    results = []
-    while tstart <= parse_time(tend):
-        results.append(do_hurst1_for_one_day)
- 
-    # Simple analysis of pre and post flare Hurst components
- 
- 
 def analyze_hurst1(h1,f):
     """Plot and analyze the pre and post flare Hurst results"""
     style = {'before_flare':{"ecolor":'r',"marker":'s',"mfc":"r"},
