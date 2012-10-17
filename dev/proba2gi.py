@@ -222,7 +222,7 @@ def ps2rs(x):
 # the package 'R'
 #
 def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
-                cut_off=10**np.array([0.7,2.5]),
+                cut_off=10**np.array([0.7,2.5]), moment=1,
                 method=None, length=None, nbox=None, order=None,
                 subseries=None, octave=None ):
     """ Calculate the Hurst exponent using the fArma code of R, accessed
@@ -239,6 +239,7 @@ def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
         if f in fArma_functions:
             Rdata = robjects.vectors.FloatVector(data)
             Rcut_off = robjects.vectors.FloatVector(cut_off)
+            
             if f == 'aggvarFit':
                 try:
                     output = robjects.r.aggvarFit(Rdata,
@@ -246,8 +247,11 @@ def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
                                                   levels=levels,
                                                   minnpts=minnpts)
                 except:
+                    print f
                     print('Algorithm failure')
+                    print " "
                     output=None
+
             if f == 'diffvarFit':
                 try:
                     output = robjects.r.diffvarFit(Rdata,
@@ -255,20 +259,35 @@ def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
                                                    levels=levels,
                                                    minnpts=minnpts)
                 except:
+                    print f
                     print('Algorithm failure')
+                    print " "
                     output=None
                 
             if f == 'absvalFit':
-                output = robjects.r.diffvarFit(Rdata,
-                                              cut_off=Rcut_off,
-                                              levels=levels,
-                                              minnpts=minnpts)
+                try:
+                    output = robjects.r.absvalFit(Rdata,
+                                                   cut_off=Rcut_off,
+                                                   levels=levels,
+                                                   minnpts=minnpts)
+                except:
+                    print f
+                    print('Algorithm failure')
+                    print " "
+                    output=None
                 
             if f == 'higuchiFit':
-                output = robjects.r.diffvarFit(Rdata,
-                                              cut_off=Rcut_off,
-                                              levels=levels,
-                                              minnpts=minnpts)
+                try:
+                    output = robjects.r.higuchiFit(Rdata,
+                                                   cut_off=Rcut_off,
+                                                   levels=levels,
+                                                   minnpts=minnpts)
+                except:
+                    print f
+                    print('Algorithm failure')
+                    print " "
+                    output=None
+                    
             if f == 'pengFit':
                 if method is None:
                     method = 'mean'
@@ -279,10 +298,17 @@ def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
                                             minnpts=minnpts,
                                             method=Rmethod)
             if f == 'rsFit':
-                output = robjects.r.diffvarFit(Rdata,
-                                              cut_off=Rcut_off,
-                                              levels=levels,
-                                              minnpts=minnpts)
+                try:
+                    output = robjects.r.rsFit(Rdata,
+                                                   cut_off=Rcut_off,
+                                                   levels=levels,
+                                                   minnpts=minnpts)
+                except:
+                    print f
+                    print('Algorithm failure')
+                    print " "
+                    output=None
+                    
             if f == 'perFit':
                 if method is None:
                     method = 'per'
@@ -323,7 +349,7 @@ def hurst_fArma(data, function=['aggvarFit'], levels=10, minnpts=3,
                 output = robjects.r.waveletFit(Rdata,
                                                order=Rorder,
                                                octave=Roctave)
-            answer[f] = output
+        answer[f] = output
     return answer
     
 def exclude_timerange(ts,timerange):

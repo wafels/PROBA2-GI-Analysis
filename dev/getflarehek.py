@@ -8,42 +8,64 @@ import pandas
 from matplotlib import pyplot as plt
 import numpy as np
 from scipy.stats import ks_2samp
+import pickle
 
 
 def main():
 
-    tstart = parse_time('2011/02/15')
-    tend = parse_time('2011/03/15')
+    functions = ['aggvarFit', 'diffvarFit', 'absvalFit', 'rsFit', 'higuchiFit']
 
-    results = []
+    df = {}
+    for f in functions:
+        df[f] = []
+
+    h = {"no_spike":df, "between_spikes":df, "after_flare":df, "before_flare":df}
+
+
+    tstart = parse_time('2011/02/15')
+    tend = parse_time('2011/02/15')
+
+    tinitial = tstart
     while tstart <= tend:
-        results.append(do_hurst1_for_one_day(tstart))
-        tstart = tstart + timedelta(days=1)
+        results = do_hurst1_for_one_day(tstart, function = functions)
+ 
  
     # Simple analysis of pre and post flare Hurst components
     # Unpack the results into 3 types - before flare, after flare and between
     # spikes.  Compare the population of results using two-sided Kolmogorov-
     # Smirnov test
     
-        h = {"no_spike":[], "between_spikes":[], "after_flare":[], "before_flare":[]}
-        for daily_results in results:
-            for type in daily_results.keys():
-                for analysis in daily_results[type]:
-                    if analysis["aggvarFit"] is not None:
-                        h_value = analysis["aggvarFit"].do_slot("hurst")[0][0]
+        for ts_type in results.keys():
+            for timeseries in results[ts_type]:
+                for function in functions:
+                    if timeseries[function] is not None:
+                        h_value = timeseries[function].do_slot("hurst")[0][0]
                         if h_value is not None:
-                            if h_value < 1.0:
-                                h[type].append(h_value)
+                            if h_value < 1.0 and h_value > 0.0:
+                                print ts_type, function, h_value
+                                h[ts_type][function].append(h_value)
+        # Save the data
+        filepath = '/Users/ireland/proba2gi/pickle/' + \
+            tinitial.strftime("%Y%m%d_%H%M%S") + '__' + \
+            tstart.strftime("%Y%m%d_%H%M%S") + '.hurst.proba2gi.pickle'
+        pickle.dump(h, open( filepath, "wb" ))
+
+        # Advance
+        tstart = tstart + timedelta(days=1)
 
         # Do the two-sided K-S test
-        for type1 in h.keys():
-            for type2 in h.keys():
-                kstest = ks_2samp(np.array(h[type1]),np.array(h[type2]))
-                print type1, len(h[type1]), type2, len(h[type2]), kstest
+        #for type1 in h.keys():
+        #    for type2 in h.keys():
+        #        kstest = ks_2samp(np.array(h[type1]),np.array(h[type2]))
+        #        print type1, len(h[type1]), type2, len(h[type2]), kstest
     
 
 
-def do_hurst1_for_one_day(date, function=['aggvarFit','diffvarFit']):
+def do_hurst1_for_one_day(date, function=['aggvarFit',
+                                          'diffvarFit',
+                                          'absvalFit',
+                                          'rsFit',
+                                          'higuchiFit']):
     # Acquire all the relevant data
     gidata = proba2gi.GIData(date)
     #event_all_times = gidata.onoff(frm_name='combine').times()
@@ -102,10 +124,15 @@ def do_hurst1_for_one_day(date, function=['aggvarFit','diffvarFit']):
                 
                 # Two time-series are found if one spike is found in the parent
                 # time-series.
-                if len(despiked) >= 2:
+                if len(despiked) == 2:
                     if j == 0:
                         hurst_results["after_flare"].append(results)
-                    if j >= 1 and j <= len(despiked)-1:
+                    if j == 1:
+                        hurst_results["before_flare"].append(results)
+                if len(despiked) > 2:
+                    if j == 0:
+                        hurst_results["after_flare"].append(results)
+                    if j >= 1 and j < len(despiked)-1:
                         hurst_results["between_spikes"].append(results)
                     if j == len(despiked)-1:
                         hurst_results["before_flare"].append(results)
