@@ -175,19 +175,65 @@ class GIData:
         self.lyra = LYRALightCurve.create(self.date)
         # Which channel?
         self.extract = extract
+        # No event times
+        self.no_event_times = self.hek.onoff(frm_name='combine').complement().times()
+        # Event times
+        self.event_times = self.hek.onoff(frm_name='combine').times()
+
+        # Spikes
+        self.all_spike_times =[]
+        for i,tr in enumerate(self.no_event_times):
+            lc = self.lyra.truncate(tr).extract(self.extract)
+            # Look for spikes in the time series: uses time-series, not lightcurves
+            spike_times = find_spike(lc.data)
+            if spike_times is not None:
+                for st in spike_times:
+                    self.all_spike_times.append(st)
 
     def onoff(self, frm_name='combine'):
         return self.hek.onoff(frm_name=frm_name)
 
-    def plot(self, extract=None, frm_name='combine'):
+    def plot(self, extract=None, show_frm=None, show_spike=False, show_before_after=False):
+
         if extract is None:
             self.lyra.plot()
         else:
             lc = self.lyra.extract(extract)
             lc.plot()
-        times = self.onoff(frm_name=frm_name).times()
-        for tr in times:
-            plt.axvspan(tr.start(),tr.end(),facecolor='green', alpha=0.5)
+
+        if show_frm is not None:
+            times = self.onoff(frm_name=show_frm).times()
+            for tr in times:
+                plt.axvspan(tr.start(), tr.end(), facecolor='green', alpha=0.5)
+        
+        if show_spike:
+            for tr in self.all_spike_times:
+                plt.axvspan(tr.start(), tr.end(), facecolor='black', alpha=0.75)
+                
+        if show_before_after:
+            for event in self.event_times:
+                current_minimum = datetime.timedelta(days=3)
+                for spike_time in self.all_spike_times:
+                    event_end_to_spike_start = spike_time.start() - event.end()
+                    print current_minimum
+                    if event_end_to_spike_start > datetime.timedelta():
+                        if event_end_to_spike_start < current_minimum:
+                            current_minimum = event_end_to_spike_start
+                after_flare = TimeRange(event.end(), spike_time.start())
+                lc.truncate(after_flare.start(), after_flare.end()).plot(style ='c-')
+
+            for event in self.event_times:
+                current_minimum = datetime.timedelta(days=3)
+                for spike_time in self.all_spike_times:
+                    spike_end_to_event_start = event.start() - spike_time.end()
+                    if spike_end_to_event_start > datetime.timedelta():
+                        if spike_end_to_event_start < current_minimum:
+                            current_minimum = event.start() - spike_time.end()
+                before_flare = TimeRange(spike_time.end(),event.start())
+                lc.truncate(before_flare.start(), before_flare.end()).plot(style ='r-')
+        
+
+
 
 def find_spike(ts, binsize='12s', factor=3.0,
             exclusion_timescale=datetime.timedelta(minutes=1),

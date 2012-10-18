@@ -14,36 +14,38 @@ import pickle
 def main():
 
     functions = ['aggvarFit', 'diffvarFit', 'absvalFit', 'rsFit', 'higuchiFit']
+    ts_types = ["no_spike", "between_spikes", "after_flare", "before_flare"]
+    
 
-    df = {}
-    for f in functions:
-        df[f] = []
-
-    h = {"no_spike":df, "between_spikes":df, "after_flare":df, "before_flare":df}
+    h = dict.fromkeys(ts_types,[])
+    for key in h.keys():
+        h[key] = {"aggvarFit":[],
+                   'diffvarFit':[],
+                   'absvalFit':[],
+                   'rsFit':[],
+                   'higuchiFit':[]}
 
 
     tstart = parse_time('2011/02/15')
-    tend = parse_time('2011/02/15')
+    tend = parse_time('2011/03/14')
 
     tinitial = tstart
     while tstart <= tend:
         results = do_hurst1_for_one_day(tstart, function = functions)
  
- 
     # Simple analysis of pre and post flare Hurst components
     # Unpack the results into 3 types - before flare, after flare and between
     # spikes.  Compare the population of results using two-sided Kolmogorov-
     # Smirnov test
-    
+
         for ts_type in results.keys():
-            for timeseries in results[ts_type]:
-                for function in functions:
-                    if timeseries[function] is not None:
-                        h_value = timeseries[function].do_slot("hurst")[0][0]
-                        if h_value is not None:
-                            if h_value < 1.0 and h_value > 0.0:
-                                print ts_type, function, h_value
-                                h[ts_type][function].append(h_value)
+            all_ts = results[ts_type]
+            for ts in all_ts:
+                for f in ts.keys():
+                    if ts[f] is not None:
+                        h_value = ts[f].do_slot("hurst")[0][0]
+                        if h_value < 1.0 and h_value > 0.0:
+                            h[ts_type][f].append(h_value)
         # Save the data
         filepath = '/Users/ireland/proba2gi/pickle/' + \
             tinitial.strftime("%Y%m%d_%H%M%S") + '__' + \
@@ -68,6 +70,7 @@ def do_hurst1_for_one_day(date, function=['aggvarFit',
                                           'higuchiFit']):
     # Acquire all the relevant data
     gidata = proba2gi.GIData(date)
+    gidata.plot(extract='CHANNEL4', show_frm='combine', show_spike=True)
     #event_all_times = gidata.onoff(frm_name='combine').times()
     no_event_times = gidata.onoff(frm_name='combine').complement().times()
 
@@ -94,7 +97,7 @@ def do_hurst1_for_one_day(date, function=['aggvarFit',
         for j,newlc in enumerate(despiked):
             # resample the data to remove the effects of instrumental noise
             # resampled = newlc.resample('1s',how='mean',)
-            resampled = newlc
+            resampled = newlc.resample('1s',how='mean',)
             results = proba2gi.hurst_fArma(resampled, 
                                                   function=function, 
                                                   levels=10 )
