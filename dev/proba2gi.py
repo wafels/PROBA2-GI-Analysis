@@ -184,11 +184,12 @@ class GIData:
         self.all_spike_times =[]
         for i,tr in enumerate(self.no_event_times):
             lc = self.lyra.truncate(tr).extract(self.extract)
-            # Look for spikes in the time series: uses time-series, not lightcurves
-            spike_times = find_spike(lc.data)
-            if spike_times is not None:
-                for st in spike_times:
-                    self.all_spike_times.append(st)
+            if len(lc.data) > 2:
+                # Look for spikes in the time series: uses time-series, not lightcurves
+                spike_times = find_spike(lc.data)
+                if spike_times is not None:
+                    for st in spike_times:
+                        self.all_spike_times.append(st)
 
     def onoff(self, frm_name='combine'):
         return self.hek.onoff(frm_name=frm_name)
@@ -235,11 +236,10 @@ class GIData:
 
 
 
-def find_spike(ts, binsize='12s', factor=3.0,
+def find_spike(ts, binsize='12s', factor=2.0,
             exclusion_timescale=datetime.timedelta(minutes=1),
               method=None):
     """Find a spike in the data and return its approximate start and end time"""
-
     if method is None:
         # Resample in bins of a given size
         tss = ts.resample(binsize, how='mean')
@@ -408,7 +408,7 @@ def split_timeseries(ts,timeranges):
     required"""
 
     # If no timerange is passed in, just return the time series
-    if timeranges is None:
+    if timeranges == []:
         return [ts]
 
     split =[]

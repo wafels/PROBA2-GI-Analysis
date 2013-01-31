@@ -26,8 +26,8 @@ def main():
                    'higuchiFit':[]}
 
 
-    tstart = parse_time('2011/02/15')
-    tend = parse_time('2011/03/14')
+    tstart = parse_time('2012/06/08')
+    tend = parse_time('2012/07/08')
 
     tinitial = tstart
     while tstart <= tend:
@@ -70,9 +70,15 @@ def do_hurst1_for_one_day(date, function=['aggvarFit',
                                           'higuchiFit']):
     # Acquire all the relevant data
     gidata = proba2gi.GIData(date)
-    gidata.plot(extract='CHANNEL4', show_frm='combine', show_spike=True)
+    #gidata.plot(extract='CHANNEL4', show_frm='combine', show_spike=True)
     #event_all_times = gidata.onoff(frm_name='combine').times()
-    no_event_times = gidata.onoff(frm_name='combine').complement().times()
+    raw_no_event_times = gidata.onoff(frm_name='combine').complement().times()
+    no_event_times = []
+    for tr in raw_no_event_times:
+        hour_part = tr.start().hour
+        if hour_part >= 6:
+            no_event_times.append(tr)
+
 
     # Go through each time range and perform the Hurst analyses    
     hurst_results = {"no_spike":[], "between_spikes":[],
@@ -80,16 +86,24 @@ def do_hurst1_for_one_day(date, function=['aggvarFit',
     all_spike_times = []
     for i,tr in enumerate(no_event_times):
         lc = gidata.lyra.truncate(tr).extract('CHANNEL4')
-        
+        spike_times = []
+        if len(lc.data) > 2:
         # Look for spikes in the time series: uses time-series, not lightcurves
-        spike_times = proba2gi.find_spike(lc.data)
-        if spike_times is not None:
-            for st in spike_times:
-                all_spike_times.append(st)
+            spike_times = proba2gi.find_spike(lc.data)
+            if spike_times is not None:
+                for st in spike_times:
+                    if st.start().hour >= 6:
+                        all_spike_times.append(st)
 
         # Split the time series into sections; each section does not contain 
         # a spike.  Uses time-series, not lightcurves
-        despiked = proba2gi.split_timeseries(lc.data,spike_times)
+        raw_despiked = proba2gi.split_timeseries(lc.data,spike_times)
+        
+        # Filter the time-series to make sure there are enough points
+        despiked = []
+        for z in raw_despiked:
+            if len(z) >= 10000:
+                despiked.append(z)
 
         # Perform the analyses
         # Analysis 1
@@ -97,7 +111,8 @@ def do_hurst1_for_one_day(date, function=['aggvarFit',
         for j,newlc in enumerate(despiked):
             # resample the data to remove the effects of instrumental noise
             # resampled = newlc.resample('1s',how='mean',)
-            resampled = newlc.resample('1s',how='mean',)
+            resampled = newlc
+            #resampled = newlc.resample('1s',how='mean')
             results = proba2gi.hurst_fArma(resampled, 
                                                   function=function, 
                                                   levels=10 )
@@ -114,7 +129,7 @@ def do_hurst1_for_one_day(date, function=['aggvarFit',
             # the flare, and the maximum value of 'k' for (i,k) where i is fixed
             # gives you the time-series immediately preceding a flare.
             # We are relying on the series returned by despike as being
-            # strinctly ordered by time.
+            # strictly ordered by time.
 
             if i != 0:
                 # Drop the first time-series since we don't know its status -
