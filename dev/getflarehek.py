@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 from scipy.stats import ks_2samp
 import pickle
+import os
 
 
 def main():
@@ -16,6 +17,9 @@ def main():
     functions = ['aggvarFit', 'diffvarFit', 'absvalFit', 'rsFit', 'higuchiFit']
     ts_types = ["no_spike", "between_spikes", "after_flare", "before_flare"]
     
+    resample_size = 500
+    resample_size = 'native_cadence'
+    resample_size_string = str(resample_size)
 
     h = dict.fromkeys(ts_types,[])
     for key in h.keys():
@@ -31,7 +35,7 @@ def main():
 
     tinitial = tstart
     while tstart <= tend:
-        results = do_hurst1_for_one_day(tstart, function = functions)
+        results = do_hurst1_for_one_day(tstart, resample_size, function=functions)
  
     # Simple analysis of pre and post flare Hurst components
     # Unpack the results into 3 types - before flare, after flare and between
@@ -47,9 +51,12 @@ def main():
                         if h_value < 1.0 and h_value > 0.0:
                             h[ts_type][f].append(h_value)
         # Save the data
-        filepath = '/Users/ireland/proba2gi/pickle/' + \
+        directory = '/Users/ireland/proba2gi/pickle/'+ resample_size_string + '/'
+        if not os.path.isdir(directory):
+            os.makedirs(directory)
+        filepath =  directory + \
             tinitial.strftime("%Y%m%d_%H%M%S") + '__' + \
-            tstart.strftime("%Y%m%d_%H%M%S") + '.hurst.proba2gi.pickle'
+            tstart.strftime("%Y%m%d_%H%M%S") + '.hurst.proba2gi.'+resample_size_string+'.pickle'
         pickle.dump(h, open( filepath, "wb" ))
 
         # Advance
@@ -63,11 +70,12 @@ def main():
     
 
 
-def do_hurst1_for_one_day(date, function=['aggvarFit',
+def do_hurst1_for_one_day(date, resample_size, function=['aggvarFit',
                                           'diffvarFit',
                                           'absvalFit',
                                           'rsFit',
                                           'higuchiFit']):
+    minimum_length = 10000
     # Acquire all the relevant data
     gidata = proba2gi.GIData(date)
     #gidata.plot(extract='CHANNEL4', show_frm='combine', show_spike=True)
@@ -85,7 +93,7 @@ def do_hurst1_for_one_day(date, function=['aggvarFit',
                     "after_flare":[], "before_flare":[]}
     all_spike_times = []
     for i,tr in enumerate(no_event_times):
-        lc = gidata.lyra.truncate(tr).extract('CHANNEL4')
+        lc = gidata.lyra.truncate(tr).extract('CHANNEL3')
         spike_times = []
         if len(lc.data) > 2:
         # Look for spikes in the time series: uses time-series, not lightcurves
@@ -102,20 +110,24 @@ def do_hurst1_for_one_day(date, function=['aggvarFit',
         # Filter the time-series to make sure there are enough points
         despiked = []
         for z in raw_despiked:
-            if len(z) >= 10000:
+            if len(z) >= minimum_length:
                 despiked.append(z)
 
         # Perform the analyses
         # Analysis 1
         # Calculate the Hurst exponent for the time series
         for j,newlc in enumerate(despiked):
+            # newlc.data = np.random.randn(len(newlc))
             # resample the data to remove the effects of instrumental noise
             # resampled = newlc.resample('1s',how='mean',)
-            resampled = newlc
-            #resampled = newlc.resample('1s',how='mean')
-            results = proba2gi.hurst_fArma(resampled, 
-                                                  function=function, 
-                                                  levels=10 )
+            if resample_size != 'native_cadence':
+                resample_size_string = str(resample_size)+'L'
+                resampled = newlc.resample(resample_size_string,how='sum')
+            else:
+                resampled = newlc
+            # write out a csv file
+            
+            n = round(len(newlc)/(1.0*len(resampled)))
             # Store all the results.  i = 0 indicates the first
             # time-series after the flare, except when we are looking at the
             # very first segment.  The largest number indicates
@@ -138,21 +150,28 @@ def do_hurst1_for_one_day(date, function=['aggvarFit',
                 # This time series spans the range from after a flare to
                 # before a flare with no spike in between
                 if len(despiked) == 1:
+                    results = proba2gi.hurst_fArma(resampled, function=function, levels=10)
                     hurst_results["no_spike"].append(results)
                 
                 # Two time-series are found if one spike is found in the parent
                 # time-series.
                 if len(despiked) == 2:
                     if j == 0:
+                        results = proba2gi.hurst_fArma(resampled[0:minimum_length/n], function=function, levels=10)
                         hurst_results["after_flare"].append(results)
+                        resampled.to_csv('/Users/ireland/proba2gi/csv/'+date.strftime("%Y%m%d_%H%M%S")+'_'+str(i)+'_'+str(j)+'.csv')
                     if j == 1:
+                        results = proba2gi.hurst_fArma(resampled[-minimum_length/n:], function=function, levels=10)
                         hurst_results["before_flare"].append(results)
                 if len(despiked) > 2:
                     if j == 0:
+                        results = proba2gi.hurst_fArma(resampled[0:minimum_length/n], function=function, levels=10)
                         hurst_results["after_flare"].append(results)
                     if j >= 1 and j < len(despiked)-1:
+                        results = proba2gi.hurst_fArma(resampled, function=function, levels=10)
                         hurst_results["between_spikes"].append(results)
                     if j == len(despiked)-1:
+                        results = proba2gi.hurst_fArma(resampled[-minimum_length/n:], function=function, levels=10)
                         hurst_results["before_flare"].append(results)
 
     return hurst_results

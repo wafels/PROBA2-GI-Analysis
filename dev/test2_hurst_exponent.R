@@ -5,7 +5,7 @@
 # import the library I need
 library(fArma)
 
-dir = "~/lyra/dat/test/"
+dir = "~/proba2gi/csv/"
 
 # list the files in the directory
 files = paste(dir,list.files(path = dir,pattern = "*.csv"),sep = '')
@@ -27,6 +27,6 @@ for (i in c(1:nfiles)) {
   time <- tbl$time
   emission <- tbl$emission
 
-  d[i] = diffvarFit(emission, levels = 50, minnpts = 3, cut.off = 10^c(0.7, 2.5), doplot = TRUE, trace = FALSE, title = NULL, description = NULL)
+  d[i] = higuchiFit(emission, levels = 50, minnpts = 3, cut.off = 10^c(0.7, 2.5), doplot = TRUE, trace = FALSE, title = NULL, description = NULL)
 
 }
