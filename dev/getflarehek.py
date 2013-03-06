@@ -1,5 +1,10 @@
 """Example analysis script"""
 
+# TODO - extract the code that pulls out pre and post flare data from this
+# file.  put the Hurst analysis code in a different file.  Easier to play
+# with the pre- and post- flare time-series when these two portions of the
+# code have been separated.
+
 import proba2gi
 from sunpy.lightcurve import LYRALightCurve
 from sunpy.time import TimeRange, parse_time
@@ -17,7 +22,7 @@ def main():
     functions = ['aggvarFit', 'diffvarFit', 'absvalFit', 'rsFit', 'higuchiFit']
     ts_types = ["no_spike", "between_spikes", "after_flare", "before_flare"]
     
-    resample_size = 500
+    #resample_size = 500
     resample_size = 'native_cadence'
     resample_size_string = str(resample_size)
 
@@ -68,7 +73,9 @@ def main():
         #        kstest = ks_2samp(np.array(h[type1]),np.array(h[type2]))
         #        print type1, len(h[type1]), type2, len(h[type2]), kstest
     
-
+def save_to_csv(channel, resampled, date, i, j, tstype):
+    resampled.to_csv('/Users/ireland/proba2gi/csv/'+channel+'/'+date.strftime("%Y%m%d_%H%M%S")+'_'+str(i)+'_'+str(j)+'_'+tstype+'.csv')
+    return None
 
 def do_hurst1_for_one_day(date, resample_size, function=['aggvarFit',
                                           'diffvarFit',
@@ -76,6 +83,7 @@ def do_hurst1_for_one_day(date, resample_size, function=['aggvarFit',
                                           'rsFit',
                                           'higuchiFit']):
     minimum_length = 10000
+    channel = 'CHANNEL3'
     # Acquire all the relevant data
     gidata = proba2gi.GIData(date)
     #gidata.plot(extract='CHANNEL4', show_frm='combine', show_spike=True)
@@ -93,7 +101,7 @@ def do_hurst1_for_one_day(date, resample_size, function=['aggvarFit',
                     "after_flare":[], "before_flare":[]}
     all_spike_times = []
     for i,tr in enumerate(no_event_times):
-        lc = gidata.lyra.truncate(tr).extract('CHANNEL3')
+        lc = gidata.lyra.truncate(tr).extract(channel)
         spike_times = []
         if len(lc.data) > 2:
         # Look for spikes in the time series: uses time-series, not lightcurves
@@ -150,29 +158,34 @@ def do_hurst1_for_one_day(date, resample_size, function=['aggvarFit',
                 # This time series spans the range from after a flare to
                 # before a flare with no spike in between
                 if len(despiked) == 1:
-                    results = proba2gi.hurst_fArma(resampled, function=function, levels=10)
-                    hurst_results["no_spike"].append(results)
+                    pass
+                    #results = proba2gi.hurst_fArma(resampled, function=function, levels=10)
+                    #hurst_results["no_spike"].append(results)
                 
                 # Two time-series are found if one spike is found in the parent
                 # time-series.
                 if len(despiked) == 2:
                     if j == 0:
-                        results = proba2gi.hurst_fArma(resampled[0:minimum_length/n], function=function, levels=10)
-                        hurst_results["after_flare"].append(results)
-                        resampled.to_csv('/Users/ireland/proba2gi/csv/'+date.strftime("%Y%m%d_%H%M%S")+'_'+str(i)+'_'+str(j)+'.csv')
+                        #results = proba2gi.hurst_fArma(resampled[0:minimum_length/n], function=function, levels=10)
+                        #hurst_results["after_flare"].append(results)
+                        save_to_csv(channel, resampled, date, i, j, 'after')
                     if j == 1:
-                        results = proba2gi.hurst_fArma(resampled[-minimum_length/n:], function=function, levels=10)
-                        hurst_results["before_flare"].append(results)
+                        #results = proba2gi.hurst_fArma(resampled[-minimum_length/n:], function=function, levels=10)
+                        #hurst_results["before_flare"].append(results)
+                        save_to_csv(channel, resampled, date, i, j, 'before')
                 if len(despiked) > 2:
                     if j == 0:
-                        results = proba2gi.hurst_fArma(resampled[0:minimum_length/n], function=function, levels=10)
-                        hurst_results["after_flare"].append(results)
+                        #results = proba2gi.hurst_fArma(resampled[0:minimum_length/n], function=function, levels=10)
+                        #hurst_results["after_flare"].append(results)
+                        save_to_csv(channel, resampled, date, i, j, 'after')
                     if j >= 1 and j < len(despiked)-1:
-                        results = proba2gi.hurst_fArma(resampled, function=function, levels=10)
-                        hurst_results["between_spikes"].append(results)
+                        pass
+                        #results = proba2gi.hurst_fArma(resampled, function=function, levels=10)
+                        #hurst_results["between_spikes"].append(results)
                     if j == len(despiked)-1:
-                        results = proba2gi.hurst_fArma(resampled[-minimum_length/n:], function=function, levels=10)
-                        hurst_results["before_flare"].append(results)
+                        #results = proba2gi.hurst_fArma(resampled[-minimum_length/n:], function=function, levels=10)
+                        #hurst_results["before_flare"].append(results)
+                        save_to_csv(channel, resampled, date, i, j, 'before')
 
     return hurst_results
 

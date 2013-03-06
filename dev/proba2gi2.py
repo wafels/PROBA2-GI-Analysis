@@ -1,4 +1,4 @@
-"""Implements the LYRA data analysis"""
+"""Helpers for the PROBA 2 analysis"""
 
 from sunpy.net import hek
 from sunpy.time import parse_time
@@ -14,7 +14,6 @@ import pickle
 import pandas
 from rpy2.robjects.packages import importr
 import rpy2.robjects as robjects
-from interrogate_hek import fevent
 
 
 
@@ -27,6 +26,51 @@ class SpikeTimeRange(TimeRange):
     """Used to identify that this time range denotes the start and end time of
     an event."""
     pass
+
+class SpikeTimeStart(datetime.datetime):
+    """Used to identify the start time of a spike"""
+    pass
+
+class SpikeTimeEnd(datetime.datetime):
+    """Used to identify the end time of a spike"""
+    pass
+
+class EventTimeStart(datetime.datetime):
+    """Used to identify the start time of an event"""
+    pass
+
+class EventTimeEnd(datetime.datetime):
+    """Used to identify the end time of an event"""
+
+def find_spike(ts, binsize='12s', factor=2.0,
+            exclusion_timescale=datetime.timedelta(minutes=1),
+              method=None):
+    """Find a spike in the data and return its approximate start and end time"""
+    if method is None:
+        # Resample in bins of a given size
+        tss = ts.resample(binsize, how='mean')
+        tnew = tss - pandas.stats.moments.rolling_median(tss,10, center=True)
+        # Rescale to the standard deviation
+        rescaled = abs((tnew-tnew.mean())/tnew.std())
+    
+        # Find the times where the rescaled time-series is big.
+        spike_times = (LogicalLightCurve(rescaled>factor)).times()
+        
+        # Extend the times a little bit to make sure we definitely exclude the
+        # spike
+        adjusted = []
+        for tr in spike_times:
+            adjusted_left = tr.start()-exclusion_timescale
+            if adjusted_left < ts.index[0]:
+                adjusted_left = ts.index[0]
+            
+            adjusted_right = tr.start()+exclusion_timescale
+            if adjusted_right > ts.index[-1]:
+                adjusted_right = ts.index[-1]
+
+            adjusted = [SpikeTimeRange(adjusted_left, adjusted_right)]
+
+    return adjusted
 
     
 
@@ -100,28 +144,6 @@ class GIData:
                 before_flare = TimeRange(spike_time.end(),event.start())
                 lc.truncate(before_flare.start(), before_flare.end()).plot(style ='r-')
         
-
-def find_spike(ts, binsize='12s', factor=2.0,
-            exclusion_timescale=datetime.timedelta(minutes=1),
-              method=None):
-    """Find a spike in the data and return its approximate start and end time"""
-    if method is None:
-        # Resample in bins of a given size
-        tss = ts.resample(binsize, how='mean')
-        tnew = tss - pandas.stats.moments.rolling_median(tss,10, center=True)
-        # Rescale to the standard deviation
-        rescaled = abs((tnew-tnew.mean())/tnew.std())
-    
-        # Find the times where the rescaled time-series is big.
-        spike_times = (LogicalLightCurve(rescaled>factor)).times()
-        
-        
-        # Extend the times a little bit to make sure we definitely exclude the
-        # spike
-        adjusted = [SpikeTimeRange(tr.start()-exclusion_timescale,
-                      tr.end()+exclusion_timescale) for tr in spike_times]
-
-    return adjusted
 
 #
 # Small routine to convert a python string to a R-object string

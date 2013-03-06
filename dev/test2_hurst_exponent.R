@@ -4,6 +4,7 @@
 
 # import the library I need
 library(fArma)
+library(fractal)
 
 dir = "~/proba2gi/csv/"
 
@@ -14,6 +15,10 @@ files = paste(dir,list.files(path = dir,pattern = "*.csv"),sep = '')
 nfiles = length(files)
 
 d = list(0)
+
+f = list(0)
+
+g = list(0)
 
 # read in each file
 for (i in c(1:nfiles)) {
@@ -27,6 +32,10 @@ for (i in c(1:nfiles)) {
   time <- tbl$time
   emission <- tbl$emission
 
-  d[i] = higuchiFit(emission, levels = 50, minnpts = 3, cut.off = 10^c(0.7, 2.5), doplot = TRUE, trace = FALSE, title = NULL, description = NULL)
+  #d[i] = higuchiFit(emission, levels = 50, minnpts = 3, cut.off = 10^c(0.7, 2.5), doplot = TRUE, trace = FALSE, title = NULL, description = NULL)
 
+  fdw = FDWhittle(emission, method='discrete')
+
+  hur = hurstSpec(emission)
+  
 }
